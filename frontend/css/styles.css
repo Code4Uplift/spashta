@@ -765,3 +765,61 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
   color: #cbd5e1;
   letter-spacing: 0.01em;
 }
+
+/* TCET CoE AI Gateway Key Button & Modal */
+.btn-coe-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 9999px;
+  background: #EEF2FF;
+  border: 1px solid #C7D2FE;
+  color: #4338CA;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-coe-key:hover {
+  background: #E0E7FF;
+  border-color: #A5B4FC;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(67, 56, 202, 0.15);
+}
+.coe-key-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+.coe-key-label {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.coe-key-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94A3B8;
+  transition: background 0.2s;
+}
+.coe-key-status-dot.active {
+  background: #10B981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeInModal 0.2s ease-out;
+}
+@keyframes fadeInModal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+

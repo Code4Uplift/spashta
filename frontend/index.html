@@ -98,6 +98,11 @@
               <span id="btn-dictate-text">Voice Dictate</span>
               <span class="dictate-live-bars"><span></span><span></span><span></span></span>
             </button>
+            <button type="button" class="btn-coe-key" id="btn-coe-key" title="TCET CoE NVIDIA DGX Spark AI Gateway Key (sk-...) for direct browser thinking">
+              <span class="coe-key-icon">⚡</span>
+              <span class="coe-key-label">CoE AI</span>
+              <span id="btn-coe-key-status" class="coe-key-status-dot"></span>
+            </button>
           </div>
         </div>
 
@@ -135,6 +140,38 @@
     <span>SPASHTA Platform · Multilingual Explainable AI Demo</span>
   </div>
 </footer>
+
+  <!-- TCET CoE AI Key Modal -->
+  <div id="coe-key-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:22px;">⚡</span>
+          <div>
+            <h3 style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">TCET CoE AI Gateway (NVIDIA DGX Spark)</h3>
+            <p style="margin:0; font-size:11.5px; color:var(--text-muted);">Qwen3.6-35B-A3B with Deep Thinking Mode & Dialect Unscrambler</p>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-coe-modal" title="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px;">
+        <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.5; margin-bottom:12px;">
+          Enter your personal TCET student access key (<code>sk-...</code>) to connect directly from your browser to the campus NVIDIA DGX Spark workstation (Section 8 of TCET Guide). Stored securely on your device in <code>localStorage</code>.
+        </p>
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-primary);">Student Access Key (Bearer Token):</label>
+          <input type="password" id="input-coe-key" placeholder="sk-..." autocomplete="off" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border-color); font-family:monospace; font-size:13px; box-sizing:border-box;">
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+          <span id="coe-key-status-message" style="color:var(--text-muted);">Checking key...</span>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="btn-clear-coe-key" class="btn-modal-secondary" style="padding:6px 12px; border-radius:6px; border:1px solid var(--border-color); background:transparent; font-size:12px; cursor:pointer;">Clear</button>
+            <button type="button" id="btn-save-coe-key" class="btn-modal-primary" style="padding:6px 14px; border-radius:6px; background:#4338CA; color:white; border:none; font-size:12px; font-weight:600; cursor:pointer;">Save Key</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <script src="js/config.js"></script>
 <script src="js/translate-service.js"></script>

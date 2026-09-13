@@ -17,7 +17,7 @@ if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
 import httpx
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -351,47 +351,69 @@ def account_aggregator_webhook(payload: AccountAggregatorWebhookPayload):
     )
 
 
-VOICE_PARSER_SYSTEM_PROMPT = """You are the intelligent natural language voice parser for SPASHTA, India's explainable AI underwriting engine.
-You understand spoken user commands in ANY Indian language or dialect (English, Hindi, Gujarati, Marathi, Tamil, Telugu, Bengali, Kannada, Malayalam, Urdu, Marwari, Hinglish, etc.).
-You have full reasoning and thinking capabilities. Use your internal chain of thought to translate and deeply understand what the user is expressing.
+VOICE_PARSER_SYSTEM_PROMPT = """You are the Cognitive Speech & Dialect Unscrambler AI for SPASHTA, India's Explainable AI underwriting platform.
+Real human speech from Indian users is messy, colloquial, full of filler words, disordered/inverted phrasing, dialect mixtures (Hinglish, Tanglish, Marathlinglish, Gujaranglish, casual slang), and mid-sentence self-corrections.
 
-Analyze the user's spoken sentence and output a single JSON object with the following fields:
-1. "domain": One of "rbi", "irdai", "sebi", "pfrda", "ibbi", "nabard". If no authority/sector is mentioned, retain the user's current active domain.
-   - rbi: credit card, personal loan, CIBIL, credit score, debt, salary, bank (कर्ज, लोन, बैंक, सिबिल, पगार, वेतन)
-   - irdai: insurance, health/motor claim, policy vintage/tenure, network cashless hospital, pre-existing disease, anomaly/fraud (बीमा, विमा, क्लेम, पॉलिसी, दावा, अस्पताल)
-   - sebi: stocks, mutual funds, investments, annual net worth/income, risk tolerance, portfolio concentration, horizon (शेयर, निवेश, स्टॉक, बाजार, संपत्ति, उत्पन्न)
-   - pfrda: NPS, retirement, pension, age, monthly savings/contribution, equity allocation (पेंशन, पेन्शन, निवृत्ती, उम्र, वय, एनपीएस)
-   - ibbi: corporate insolvency, resolution enterprise value (₹ Cr), liquidation coverage, timeline months, recovery (दिवालिया, समाधान, परिसमापन, एंटरप्राइज)
-   - nabard: Kisan Credit Card, cultivable land (acres), harvest/crop yield, moneylender debt, irrigation, PMFBY crop insurance (किसान, शेती, जमीन, फसल, पीक, एकर, सिंचन)
+YOUR PRIMARY DUTY IS TO REASON, UNTANGLE, AND UNSCRAMBLE THE USER'S INTENDED MEANING:
+1. DE-NOISE & UNSCRAMBLE:
+   - Filter out all conversational filler words and social padding ("arre", "bhai", "yaar", "sun na", "dekho", "actually", "matlab", "basically", "so like", "karna hai", "chahiye tha", "maan lo", "please check", "batao", "bhi").
+   - Untangle scrambled, inverted, and split phrases:
+     * "do lakh ka loan chahiye credit score mera 780 hai aur income 50000" -> loan_amount: 200000, score: 780, income: 50000
+     * "income meri paanch lakh hai sebi me" -> domain: sebi, income: 500000
+     * "bhai suno cibil score agar dekhe to 750 hai aamdani tees hazaar" -> score: 750, income: 30000
+     * "mera credit score saat sau hai aur aamdani 700 hai" -> score: 700, income: 700
+     * "hospital jo hai na cashless wala wo nahi hai mere pass claim do lakh ka hai" -> domain: irdai, network: 0, amount: 200000
+     * "kisan hu fasal do lakh zameen 10 acre" -> domain: nabard, crop_value: 200000, land_holding: 10
+     * "pension ka bata umar meri 45 saal hai har mahine 5000 jama karta hu" -> domain: pfrda, age: 45, monthly_contribution: 5000
+     * "enterprise value 500 crore liquidation coverage 120" -> domain: ibbi, ev_amount: 500, liquidation_coverage: 120
 
-2. "action": Optional action string or null. Allowed values: "compute", "reset", "speak", "stop_audio", "privacy".
+2. RESOLVE CORRECTIONS (User changing their mind):
+   - If the user corrects themselves mid-sentence, pick the FINAL corrected value:
+     * "cibil 700 nahi 780 hai" -> score: 780
+     * "loan 5 lakh actually 2 lakh chahiye" -> loan_amount: 200000
+     * "income 50000 wait make it 70000" -> income: 70000
 
-3. "parameters": Dictionary of numeric field values extracted from speech.
-   CRITICAL - MULTIPLE PARAMETER EXTRACTION:
-   Extract ALL parameters mentioned in the sentence. If the user mentions 2, 3, or more parameters (e.g. credit score 780, monthly income 50000, loan 200000), include ALL of them in the parameters dictionary:
-   {"score": 780, "income": 50000, "loan_amount": 200000}. Do NOT stop after the first parameter!
+3. MULTI-LINGUAL INDIC NUMBER TRANSLATION:
+   - Convert spoken number words in any language into digits:
+     * "saat sau" / "सात सौ" / "700" / "shambhar" -> 700
+     * "paanch lakh" / "पाच लाख" / "5 lakhs" -> 500000
+     * "do lakh" / "don lakh" / "दोन लाख" -> 200000
+     * "pachas hazaar" / "पन्नास हजार" / "50k" -> 50000
+     * "dedh lakh" -> 150000, "dhai lakh" -> 250000, "sawa lakh" -> 125000
+     * Direct numbers like "income 700" or "700 per month" -> 700 (microfinance allows income >= 500)
 
-   TOGGLE CONTROLS (0 or 1) - Understand negation & affirmative across all languages:
-   - irdai "network" (Hospital/Garage): "hospital is not there", "no network hospital", "गैर-नेटवर्क", "अस्पताल नहीं है", "दवाखाना नाही", "illai", "nathi" -> 0. "cashless network hospital", "नेटवर्क अस्पताल है" -> 1.
-   - irdai "pre_existing": "no pre-existing disease", "clean record", "बीमारी नहीं है", "आजार नाही" -> 0. "has pre-existing disease", "बीमारी है" -> 1.
-   - nabard "irrigation_status": "no irrigation", "rainfed", "सूखा", "पाणी नाही" -> 0. "irrigation available", "canal", "borewell", "सिंचाई है" -> 1.
-   - nabard "crop_insurance": "no crop insurance", "uninsured", "बीमा नहीं है", "विमा नाही" -> 0. "PMFBY insured", "फसल बीमा है" -> 1.
+4. TOGGLE CONTROLS (0 = Negation / OFF, 1 = Affirmative / ON):
+   - irdai "network" (Hospital/Garage): "hospital nahi hai", "no network hospital", "non-network", "illai", "nathi", "without hospital" -> 0. "cashless network hospital", "hospital hai" -> 1.
+   - irdai "pre_existing": "no disease", "clean health record", "bimari nahi hai", "bina kisi bimari ke", "illai" -> 0. "has pre-existing disease", "purani bimari hai" -> 1.
+   - nabard "irrigation_status": "no irrigation", "dryland", "rainfed", "pani nahi hai", "sukha" -> 0. "irrigation available", "canal", "borewell", "pani hai" -> 1.
+   - nabard "crop_insurance": "no insurance", "uninsured", "bima nahi hai" -> 0. "insured", "pmfby", "bima hai" -> 1.
 
-   Supported numeric keys per domain:
-   - rbi: score (300-900), loan_amount (₹), income (monthly ₹), foir (% 10-90), delinquency (0, 1, 2), emp_status (2, 1, 0.5, -0.5)
-   - irdai: tenure (policy vintage in years, 0-15), amount (claim ₹), network (1 or 0), pre_existing (1 or 0), fraud_score (% 0-100)
-   - sebi: risk_appetite (10-100), income (annual net worth ₹), concentration (% 5-90), horizon (years 1-20), risk_category (1, 3, 5)
-   - pfrda: age (18-70), monthly_contribution (monthly ₹), equity_allocation (% 5-75), pension_target (target monthly ₹), corpus_index (10-100)
-   - ibbi: ev_amount (resolution enterprise value in ₹ Crores directly, e.g. 500 cr -> 500), liquidation_coverage (% 50-200), timeline_months (3-36), op_creditor_recovery (% 10-100), promoter_track (3, 1, -1)
-   - nabard: land_holding (cultivable land in Acres, e.g. 10), crop_value (annual harvest yield ₹), informal_debt (% 0-80), irrigation_status (1 or 0), crop_insurance (1 or 0)
-   * Note on Indian units: 1 lakh = 100,000, 1 crore = 10,000,000, 1 thousand/hazar = 1,000.
-   * Direct numbers: "income 700" -> 700.
+5. ALL PARAMETERS SIMULTANEOUSLY:
+   - Always extract ALL valid parameters mentioned in the sentence. Never drop or omit a parameter!
 
-4. "feedback": A concise, natural confirmation message in English summarizing what was done.
+6. SECTOR / DOMAIN RECOGNITION:
+   - "rbi": credit card, loan, CIBIL, credit score, debt, salary, monthly income
+   - "irdai": insurance, claim, policy vintage/tenure, network hospital, pre-existing disease
+   - "sebi": stocks, investments, annual net worth, risk tolerance, portfolio, horizon
+   - "pfrda": NPS, pension, retirement, age, monthly savings/contribution
+   - "ibbi": insolvency, bankruptcy, enterprise value (₹ Cr), liquidation coverage, timeline
+   - "nabard": kisan credit card, land holding (acres), crop yield, irrigation, crop insurance
+   * If no domain is mentioned, keep the user's current domain!
 
-Respond ONLY with valid JSON. Do not include markdown tags, codeblocks, or extra text.
-Example:
-{"domain": "rbi", "action": null, "parameters": {"score": 780, "income": 50000, "loan_amount": 200000}, "feedback": "Set Credit Score to 780, Monthly Income to ₹50,000, and Loan Amount to ₹2,00,000"}"""
+7. ACTIONS:
+   - "compute": calculate, compute, hisab, ganna, spashtikaran
+   - "reset": reset, clear, pehle jaisa
+   - "speak": speak, listen, audio sunao, aika
+   - "stop_audio": stop, pause, shant, ruko
+   - "privacy": privacy, shield, dpdp
+
+OUTPUT FORMAT: Strictly return a JSON object with NO surrounding markdown or extra text:
+{
+  "domain": "rbi" | "irdai" | "sebi" | "pfrda" | "ibbi" | "nabard",
+  "action": null | "compute" | "reset" | "speak" | "stop_audio" | "privacy",
+  "parameters": { "<param_key>": <numeric_value> },
+  "feedback": "Natural English summary of what was unscrambled and updated"
+}"""
 
 
 def _parse_multipliers_in_text(text: str) -> str:
@@ -443,16 +465,18 @@ def _extract_number_with_unit(segment: str) -> float | None:
 
 def _extract_param_value(text: str, keywords: list[str]) -> float | None:
     for kw in keywords:
-        # Pattern 1: Keyword followed by number/multiplier (e.g. "income 50000", "loan of 2 lakhs", "income is 700")
-        p1 = rf"\b{re.escape(kw)}\b(?:\s+(?:is|was|hai|of|around|to|=|at))?\s*(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)"
+        # Pattern 1: Keyword followed by up to 5 intervening words and then number
+        # e.g. "loan chahiye mujhe lagbhag 2 lakh", "score agar dekhe to 780 hai", "income meri 50000"
+        p1 = rf"\b{re.escape(kw)}\b(?:\s+[\w\u0900-\u097F]+){{0,5}}?\s*(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)"
         m1 = re.search(p1, text, re.IGNORECASE)
         if m1:
             val = _extract_number_with_unit(m1.group(1))
             if val is not None:
                 return val
 
-        # Pattern 2: Number/multiplier followed by keyword (e.g. "5 lakh rupees income", "50000 salary", "2 lakhs loan")
-        p2 = rf"(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)\s*(?:rupees|rs|inr|रुपये|per month|प्रति माह|दरमहा)?\s*\b{re.escape(kw)}\b"
+        # Pattern 2: Number followed by up to 5 intervening words and then keyword
+        # e.g. "2 lakh ka loan", "5 lakh rupees ki income", "50000 meri aamdani"
+        p2 = rf"(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)(?:\s+[\w\u0900-\u097F]+){{0,5}}?\s*\b{re.escape(kw)}\b"
         m2 = re.search(p2, text, re.IGNORECASE)
         if m2:
             val = _extract_number_with_unit(m2.group(1))
@@ -528,14 +552,21 @@ def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> 
         else:
             params["crop_insurance"] = 1.0
 
-    # 2. Multi-parameter numerical extraction
+    # 2. Multi-parameter numerical extraction with broad contextual window
     norm_text = _parse_multipliers_in_text(lower)
 
-    # Score (RBI)
-    score_val = _extract_param_value(norm_text, ["score", "cibil", "credit score", "सिबिल", "स्कोर"])
-    if score_val is not None and 300 <= score_val <= 900:
-        params["score"] = score_val
-        target_domain = "rbi"
+    # Score (RBI) - handle self-corrections (e.g. "700 nahi 780")
+    score_corrections = re.findall(r"(?:score|cibil|credit score|सिबिल|स्कोर)?.*?(\d{3})\s*(?:nahi|not|actually|but)\s*(\d{3})", norm_text, re.IGNORECASE)
+    if score_corrections:
+        val = float(score_corrections[-1][1])
+        if 300 <= val <= 900:
+            params["score"] = val
+            target_domain = "rbi"
+    else:
+        score_val = _extract_param_value(norm_text, ["score", "cibil", "credit score", "सिबिल", "स्कोर"])
+        if score_val is not None and 300 <= score_val <= 900:
+            params["score"] = score_val
+            target_domain = "rbi"
 
     # Loan Amount (RBI)
     loan_val = _extract_param_value(norm_text, ["loan", "borrow", "loan amount", "need a loan of", "debt", "कर्ज", "लोन", "ऋण"])
@@ -615,14 +646,16 @@ def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> 
 
 
 @app.post("/voice-intent", response_model=VoiceIntentResponse, tags=["Multilingual Speech & Voice Intent"])
-async def voice_intent_endpoint(payload: VoiceIntentRequest):
+async def voice_intent_endpoint(payload: VoiceIntentRequest, request: Request):
     """
-    Campus LLM-powered Natural Language & Dialect Voice Parser with Thinking Mode.
+    Campus LLM-powered Natural Language & Dialect Voice Parser with Deep Thinking Mode.
     Connects to TCET Centre of Excellence (CoE) AI Gateway (NVIDIA DGX Spark workstation running Qwen3.6-35B-A3B)
-    with deep chain-of-thought reasoning for multilingual and dialect comprehension.
+    with deep chain-of-thought reasoning for multilingual, colloquial, and jumbled speech unscrambling.
+    Supports server environment keys or client-provided X-CoE-AI-Key header.
     Gracefully falls back to heuristic engine if key is omitted or server busy.
     """
-    coe_key = os.getenv("COE_AI_KEY") or os.getenv("AI_KEY") or os.getenv("TCET_AI_KEY")
+    client_key = request.headers.get("X-CoE-AI-Key") or request.headers.get("x-coe-ai-key")
+    coe_key = (client_key and client_key.strip()) or os.getenv("COE_AI_KEY") or os.getenv("AI_KEY") or os.getenv("TCET_AI_KEY")
     coe_base_url = os.getenv("COE_AI_BASE_URL", "https://ai.tcetcercd.in/v1").rstrip("/")
 
     if coe_key:
@@ -633,14 +666,19 @@ async def voice_intent_endpoint(payload: VoiceIntentRequest):
                     {"role": "system", "content": VOICE_PARSER_SYSTEM_PROMPT},
                     {
                         "role": "user",
-                        "content": f"User speech: '{payload.text}'. Current active domain: '{payload.current_domain}'. Spoken language code: '{payload.language}'."
+                        "content": f"Spoken user speech: \"{payload.text}\"\nCurrent active domain: \"{payload.current_domain}\"\nSpoken language hint: \"{payload.language}\""
                     }
                 ],
                 "temperature": 0.1,
-                "max_tokens": 1500,
+                "max_tokens": 2048,
+                "chat_template_kwargs": {
+                    "enable_thinking": True,
+                    "reasoning_effort": "medium"
+                },
                 "extra_body": {
                     "chat_template_kwargs": {
-                        "enable_thinking": True
+                        "enable_thinking": True,
+                        "reasoning_effort": "medium"
                     }
                 }
             }
@@ -648,22 +686,24 @@ async def voice_intent_endpoint(payload: VoiceIntentRequest):
                 "Authorization": f"Bearer {coe_key.strip()}",
                 "Content-Type": "application/json"
             }
-            async with httpx.AsyncClient(timeout=12.0) as client:
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 resp = await client.post(f"{coe_base_url}/chat/completions", json=req_body, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()
                     msg = data.get("choices", [{}])[0].get("message", {})
-                    raw_content = msg.get("content", "").strip()
+                    raw_content = msg.get("content", "") or ""
+                    reasoning_content = msg.get("reasoning_content", "") or ""
 
                     # Strip <think>...</think> chain-of-thought tokens if present
                     clean_content = re.sub(r"<think>[\s\S]*?</think>", "", raw_content, flags=re.IGNORECASE).strip()
 
-                    # Extract JSON payload (support markdown codeblock or raw json object)
-                    json_match = re.search(r"\{[\s\S]*\}", clean_content)
+                    # Look for JSON payload in clean content, then raw content, then reasoning content
+                    json_candidate = clean_content or raw_content or reasoning_content
+                    json_match = re.search(r"\{[\s\S]*\}", json_candidate)
                     if json_match:
                         clean_json_str = json_match.group(0).strip()
                     else:
-                        clean_json_str = clean_content
+                        clean_json_str = json_candidate
 
                     parsed = json.loads(clean_json_str)
 

@@ -232,3 +232,55 @@ def test_voice_intent_tcet_coe_thinking_tokens_stripped(client, monkeypatch):
         assert data["parameters"].get("income") == 35000.0
         assert data["engine"] == "tcet_coe_qwen3.6"
 
+
+def test_voice_intent_jumbled_words_with_fillers(client):
+    """Test heuristic unscrambler on messy, jumbled speech with filler words."""
+    payload = {
+        "text": "arre bhai loan chahiye mujhe 2 lakh ka aur cibil score agar dekhe to 780",
+        "current_domain": "rbi",
+        "language": "hi"
+    }
+    response = client.post("/voice-intent", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["domain"] == "rbi"
+    assert data["parameters"].get("loan_amount") == 200000.0
+    assert data["parameters"].get("score") == 780.0
+
+
+def test_voice_intent_self_correction(client):
+    """Test self-correction where user changes their mind mid-speech."""
+    payload = {
+        "text": "cibil score 700 nahi 780 hai",
+        "current_domain": "rbi",
+        "language": "hi"
+    }
+    response = client.post("/voice-intent", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["parameters"].get("score") == 780.0
+
+
+def test_voice_intent_x_coe_key_header(client):
+    """Test client-supplied X-CoE-AI-Key header activates CoE AI thinking mode."""
+    mock_llm_output = '{"domain": "rbi", "parameters": {"score": 790, "income": 60000}, "feedback": "Unscrambled successfully"}'
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "choices": [{"message": {"role": "assistant", "content": mock_llm_output}}]
+    }
+
+    with patch("httpx.AsyncClient.post", return_value=mock_response):
+        payload = {
+            "text": "bhai income 60000 aur cibil 790",
+            "current_domain": "rbi",
+            "language": "hi"
+        }
+        response = client.post("/voice-intent", json=payload, headers={"X-CoE-AI-Key": "sk-client-key-12345"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["engine"] == "tcet_coe_qwen3.6"
+        assert data["parameters"].get("score") == 790.0
+        assert data["parameters"].get("income") == 60000.0
+
+
