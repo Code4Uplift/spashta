@@ -13,6 +13,7 @@ DomainType = Literal["rbi", "irdai", "sebi", "pfrda", "ibbi", "nabard"]
 class ScoreRequest(BaseModel):
     domain: DomainType
     inputs: Dict[str, float] = Field(default_factory=dict)
+    target_lang: str = "en"
 
     @model_validator(mode="after")
     def validate_inputs_for_domain(self):
@@ -46,10 +47,13 @@ class ScoreRequest(BaseModel):
 class FactorAttribution(BaseModel):
     key: str
     name: str
+    translated_name: Optional[str] = None
     attribution: float
     value: float
     baseline: float
     coef: float
+    impact: Optional[str] = None
+    direction: Optional[str] = None
 
 
 class ScoreResponse(BaseModel):
@@ -59,11 +63,16 @@ class ScoreResponse(BaseModel):
     score_pct: int
     baseline_pct: int
     verdict: str
+    translated_verdict: Optional[str] = None
     decided: bool
     shap_values: List[float]
     factor_breakdown: List[FactorAttribution]
     citation: str
+    translated_citation: Optional[str] = None
     cert_prefix: str
+    explanation: Optional[str] = None
+    audio_summary: Optional[str] = None
+
 
 
 class TranslateRequest(BaseModel):

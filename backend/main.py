@@ -119,56 +119,6 @@ app.add_middleware(
 # In-memory translation cache (thread-safe in GIL / async single loop)
 _translation_cache: Dict[str, str] = {}
 
-
-@app.get("/", tags=["Root"])
-def root():
-    """
-    Root endpoint returning service identity and quick links to /docs and /health.
-    """
-    return {
-        "status": "ok",
-        "service": "SPASHTA (स्पष्ट) Explainable AI Backend API",
-        "version": "2.5.0",
-        "docs": "/docs",
-        "health": "/health",
-        "sectors": ["RBI", "IRDAI", "SEBI", "PFRDA", "IBBI", "NABARD"]
-    }
-
-
-@app.get("/health", tags=["Health"])
-def health_check(db: Session = Depends(get_db)):
-    """
-    Public health check endpoint.
-    Performs a database ping to verify PostgreSQL / SQLite connectivity.
-    Ideal for UptimeRobot and Render keep-alive pings.
-    """
-    db_status = "connected"
-    try:
-        db.execute(text("SELECT 1"))
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-
-    return {
-        "status": "ok",
-        "service": "SPASHTA XAI Backend",
-        "version": "2.5.0",
-        "sectors": ["RBI", "IRDAI", "SEBI", "PFRDA", "IBBI", "NABARD"],
-        "database": db_status,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-
-
-@app.post("/score", response_model=ScoreResponse, tags=["XAI Scoring"], dependencies=[Depends(require_api_key)])
-def compute_score(request: ScoreRequest):
-    """
-    Protected endpoint: Computes exact continuous Aumann-Shapley marginal attributions
-    for applicant parameters across RBI, IRDAI, SEBI, PFRDA, IBBI, or NABARD frameworks.
-    Guarantees efficiency axiom: sum(phi_i) == P(outcome) - P(baseline).
-    """
-    result = score_domain_inputs(request.domain, request.inputs)
-    return ScoreResponse(**result)
-
-
 LANGUAGE_NAMES: Dict[str, str] = {
     "hi": "Hindi",
     "mr": "Marathi",
@@ -212,11 +162,29 @@ async def _translate_single_text(clean_text: str, source_lang: str, target_lang:
 
     translated_result = clean_text
 
-    # 1. Primary: Google GTX
+    # 1. Primary: Google clients5 dict-chrome-ex (Fast, resilient against 429)
+    try:
+        encoded_query = urllib.parse.quote(clean_text)
+        url = f"https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl={source_lang}&tl={target_lang}&q={encoded_query}"
+        resp = await client.get(url, timeout=6.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list):
+                cand = "".join([str(item) for item in data if item is not None]).strip()
+                if cand and cand != clean_text:
+                    _translation_cache[cache_key] = cand
+                    return cand
+            elif isinstance(data, str) and data.strip() and data != clean_text:
+                _translation_cache[cache_key] = data.strip()
+                return data.strip()
+    except Exception:
+        pass
+
+    # 2. Secondary: Google GTX
     try:
         encoded_query = urllib.parse.quote(clean_text)
         url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={source_lang}&tl={target_lang}&dt=t&q={encoded_query}"
-        resp = await client.get(url)
+        resp = await client.get(url, timeout=6.0)
         if resp.status_code == 200:
             data = resp.json()
             if data and isinstance(data, list) and len(data) > 0 and data[0]:
@@ -229,12 +197,12 @@ async def _translate_single_text(clean_text: str, source_lang: str, target_lang:
     except Exception:
         pass
 
-    # 2. Fallback: MyMemory API
+    # 3. Fallback: MyMemory API
     if target_lang != "en":
         try:
             encoded_query = urllib.parse.quote(clean_text)
             url2 = f"https://api.mymemory.translated.net/get?q={encoded_query}&langpair={source_lang}|{target_lang}&de=spashta.audit.ai@gmail.com"
-            resp2 = await client.get(url2)
+            resp2 = await client.get(url2, timeout=6.0)
             if resp2.status_code == 200:
                 data2 = resp2.json()
                 mem_trans = data2.get("responseData", {}).get("translatedText", "").strip()
@@ -245,6 +213,181 @@ async def _translate_single_text(clean_text: str, source_lang: str, target_lang:
             pass
 
     return translated_result
+
+
+async def _translate_batch_dict(raw_texts: Dict[str, str], source_lang: str = "en", target_lang: str = "hi") -> Tuple[Dict[str, str], str]:
+    source_lang = source_lang.lower().strip()
+    target_lang = target_lang.lower().strip()
+
+    if not raw_texts:
+        return {}, "noop"
+    if source_lang == target_lang:
+        return raw_texts, "identity"
+
+    translated_dict: Dict[str, str] = {}
+    uncached_items: Dict[str, str] = {}
+
+    for key, text_val in raw_texts.items():
+        clean_text = re.sub(r"<[^>]*>", "", text_val or "").strip()
+        if not clean_text:
+            translated_dict[key] = text_val
+            continue
+
+        cache_key = f"{source_lang}_{target_lang}_{clean_text}"
+        if cache_key in _translation_cache:
+            translated_dict[key] = _translation_cache[cache_key]
+        else:
+            uncached_items[key] = clean_text
+
+    if not uncached_items:
+        return translated_dict, "cache"
+
+    engine_used = "cache"
+    gemini_key = os.getenv("GEMINI_API_KEY")
+
+    if gemini_key and uncached_items:
+        try:
+            target_lang_name = LANGUAGE_NAMES.get(target_lang, target_lang)
+            prompt = (
+                f"You are a professional financial and regulatory translator specializing in Indian languages.\n"
+                f"Translate the string values of the following JSON dictionary from {source_lang} to {target_lang_name} ({target_lang}).\n\n"
+                f"RULES:\n"
+                f"1. Keep every JSON key identical. Do NOT translate or change any keys.\n"
+                f"2. Translate only the string values into natural, contextually accurate, fluent {target_lang_name}.\n"
+                f"3. Maintain financial/regulatory acronyms and terms properly (e.g. CIBIL, FOIR, DTI, PMFBY, IRDAI, SEBI, RBI, NPS, KCC).\n"
+                f"4. For conversational speech or explanations, ensure fluent grammar and respectful official tone in {target_lang_name}.\n"
+                f"5. Return strictly a single valid JSON object matching the input keys and translated values.\n\n"
+                f"Input JSON:\n{json.dumps(uncached_items, ensure_ascii=False)}"
+            )
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "response_mime_type": "application/json",
+                    "temperature": 0.1
+                }
+            }
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                res = await client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        parts = candidates[0]["content"].get("parts", [])
+                        if parts and "text" in parts[0]:
+                            gemini_dict = json.loads(parts[0]["text"])
+                            if isinstance(gemini_dict, dict):
+                                for k, v in gemini_dict.items():
+                                    if k in uncached_items and isinstance(v, str) and v.strip():
+                                        trans_str = v.strip()
+                                        translated_dict[k] = trans_str
+                                        orig_str = uncached_items[k]
+                                        _translation_cache[f"{source_lang}_{target_lang}_{orig_str}"] = trans_str
+                                engine_used = "gemini-1.5-flash"
+        except Exception as e:
+            print(f"⚠️ Gemini 1.5 Flash batch translation exception: {e}. Falling back to parallel engine.")
+
+    missing_items = {k: v for k, v in uncached_items.items() if k not in translated_dict or translated_dict[k] == v}
+    if missing_items:
+        async with httpx.AsyncClient(timeout=6.0, headers=HTTP_HEADERS) as client:
+            semaphore = asyncio.Semaphore(10)
+
+            async def translate_single(k: str, orig_text: str):
+                async with semaphore:
+                    trans = await _translate_single_text(orig_text, source_lang, target_lang, client)
+                    return k, orig_text, trans
+
+            tasks = [translate_single(k, text_val) for k, text_val in missing_items.items()]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, tuple) and len(r) == 3:
+                    k, orig_text, trans = r
+                    translated_dict[k] = trans
+                    if trans != orig_text:
+                        _translation_cache[f"{source_lang}_{target_lang}_{orig_text}"] = trans
+        if engine_used != "gemini-1.5-flash":
+            engine_used = "gtx-parallel"
+
+    return translated_dict, engine_used
+
+
+@app.get("/", tags=["Root"])
+def root():
+    """
+    Root endpoint returning service identity and quick links to /docs and /health.
+    """
+    return {
+        "status": "ok",
+        "service": "SPASHTA (स्पष्ट) Explainable AI Backend API",
+        "version": "2.5.0",
+        "docs": "/docs",
+        "health": "/health",
+        "sectors": ["RBI", "IRDAI", "SEBI", "PFRDA", "IBBI", "NABARD"]
+    }
+
+
+@app.get("/health", tags=["Health"])
+def health_check(db: Session = Depends(get_db)):
+    """
+    Public health check endpoint.
+    Performs a database ping to verify PostgreSQL / SQLite connectivity.
+    Ideal for UptimeRobot and Render keep-alive pings.
+    """
+    db_status = "connected"
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+
+    return {
+        "status": "ok",
+        "service": "SPASHTA XAI Backend",
+        "version": "2.5.0",
+        "sectors": ["RBI", "IRDAI", "SEBI", "PFRDA", "IBBI", "NABARD"],
+        "database": db_status,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
+@app.post("/score", response_model=ScoreResponse, tags=["XAI Scoring"], dependencies=[Depends(require_api_key)])
+async def compute_score(request: ScoreRequest):
+    """
+    Protected endpoint: Computes exact continuous Aumann-Shapley marginal attributions
+    for applicant parameters across RBI, IRDAI, SEBI, PFRDA, IBBI, or NABARD frameworks.
+    Guarantees efficiency axiom: sum(phi_i) == P(outcome) - P(baseline).
+    When target_lang != 'en', translates verdict, full audit explanation, conversational
+    audio script, and factor breakdown into the specified Indian language.
+    """
+    result = score_domain_inputs(request.domain, request.inputs)
+    target_lang = (request.target_lang or "en").lower().strip()
+
+    if target_lang != "en":
+        bundle = {
+            "verdict": result["verdict"],
+            "citation": result["citation"],
+            "explanation": result["explanation"],
+            "audio_summary": result["audio_summary"]
+        }
+        for i, f in enumerate(result["factor_breakdown"]):
+            bundle[f"f_name_{i}"] = f["name"]
+            bundle[f"f_impact_{i}"] = f["impact"]
+
+        translated_bundle, _ = await _translate_batch_dict(bundle, "en", target_lang)
+
+        if "verdict" in translated_bundle:
+            result["translated_verdict"] = translated_bundle["verdict"]
+        if "citation" in translated_bundle:
+            result["translated_citation"] = translated_bundle["citation"]
+        if "explanation" in translated_bundle:
+            result["explanation"] = translated_bundle["explanation"]
+        if "audio_summary" in translated_bundle:
+            result["audio_summary"] = translated_bundle["audio_summary"]
+
+        for i, f in enumerate(result["factor_breakdown"]):
+            f["translated_name"] = translated_bundle.get(f"f_name_{i}", f["name"])
+            f["impact"] = translated_bundle.get(f"f_impact_{i}", f["impact"])
+
+    return ScoreResponse(**result)
 
 
 @app.post("/translate", response_model=TranslateResponse, tags=["Multilingual NMT"])
@@ -302,122 +445,12 @@ async def translate_batch(request: BatchTranslateRequest):
     Powered by Google Gemini 1.5 Flash (via GEMINI_API_KEY) with structured JSON output,
     with an automatic parallelized fallback and in-memory caching.
     """
-    source_lang = request.source_lang.lower().strip()
-    target_lang = request.target_lang.lower().strip()
-    raw_texts = request.texts
-
-    if not raw_texts:
-        return BatchTranslateResponse(
-            translations={},
-            source_lang=source_lang,
-            target_lang=target_lang,
-            engine="noop"
-        )
-
-    if source_lang == target_lang:
-        return BatchTranslateResponse(
-            translations=raw_texts,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            engine="identity"
-        )
-
-    translated_dict: Dict[str, str] = {}
-    uncached_items: Dict[str, str] = {}
-
-    # 1. Check in-memory cache
-    for key, text_val in raw_texts.items():
-        clean_text = re.sub(r"<[^>]*>", "", text_val or "").strip()
-        if not clean_text:
-            translated_dict[key] = text_val
-            continue
-
-        cache_key = f"{source_lang}_{target_lang}_{clean_text}"
-        if cache_key in _translation_cache:
-            translated_dict[key] = _translation_cache[cache_key]
-        else:
-            uncached_items[key] = clean_text
-
-    if not uncached_items:
-        return BatchTranslateResponse(
-            translations=translated_dict,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            engine="cache"
-        )
-
-    engine_used = "cache"
-    gemini_key = os.getenv("GEMINI_API_KEY")
-
-    # 2. Primary: Google Gemini 1.5 Flash batch JSON translation
-    if gemini_key and uncached_items:
-        try:
-            target_lang_name = LANGUAGE_NAMES.get(target_lang, target_lang)
-            prompt = (
-                f"You are a professional financial and regulatory translator specializing in Indian languages.\n"
-                f"Translate the string values of the following JSON dictionary from {source_lang} to {target_lang_name} ({target_lang}).\n\n"
-                f"RULES:\n"
-                f"1. Keep every JSON key identical. Do NOT translate or change any keys.\n"
-                f"2. Translate only the string values into natural, contextually accurate {target_lang_name}.\n"
-                f"3. Maintain financial/regulatory acronyms and terms properly (e.g. CIBIL, FOIR, DTI, PMFBY, IRDAI, SEBI, RBI, NPS, KCC).\n"
-                f"4. Return strictly a single valid JSON object matching the input keys and translated values.\n\n"
-                f"Input JSON:\n{json.dumps(uncached_items, ensure_ascii=False)}"
-            )
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "response_mime_type": "application/json",
-                    "temperature": 0.1
-                }
-            }
-            async with httpx.AsyncClient(timeout=12.0) as client:
-                res = await client.post(url, json=payload)
-                if res.status_code == 200:
-                    data = res.json()
-                    candidates = data.get("candidates", [])
-                    if candidates and "content" in candidates[0]:
-                        parts = candidates[0]["content"].get("parts", [])
-                        if parts and "text" in parts[0]:
-                            gemini_dict = json.loads(parts[0]["text"])
-                            if isinstance(gemini_dict, dict):
-                                for k, v in gemini_dict.items():
-                                    if k in uncached_items and isinstance(v, str) and v.strip():
-                                        trans_str = v.strip()
-                                        translated_dict[k] = trans_str
-                                        orig_str = uncached_items[k]
-                                        _translation_cache[f"{source_lang}_{target_lang}_{orig_str}"] = trans_str
-                                engine_used = "gemini-1.5-flash"
-        except Exception as e:
-            print(f"⚠️ Gemini 1.5 Flash batch translation exception: {e}. Falling back to parallel engine.")
-
-    # 3. Fallback: Parallel asynchronous translation for any keys still missing
-    missing_items = {k: v for k, v in uncached_items.items() if k not in translated_dict or translated_dict[k] == v}
-    if missing_items:
-        async with httpx.AsyncClient(timeout=6.0, headers=HTTP_HEADERS) as client:
-            semaphore = asyncio.Semaphore(10)
-
-            async def translate_single(k: str, orig_text: str):
-                async with semaphore:
-                    trans = await _translate_single_text(orig_text, source_lang, target_lang, client)
-                    return k, orig_text, trans
-
-            tasks = [translate_single(k, text_val) for k, text_val in missing_items.items()]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for r in results:
-                if isinstance(r, tuple) and len(r) == 3:
-                    k, orig_text, trans = r
-                    translated_dict[k] = trans
-                    if trans != orig_text:
-                        _translation_cache[f"{source_lang}_{target_lang}_{orig_text}"] = trans
-        if engine_used != "gemini-1.5-flash":
-            engine_used = "gtx-parallel"
-
+    translations, engine = await _translate_batch_dict(request.texts, request.source_lang, request.target_lang)
     return BatchTranslateResponse(
-        translations=translated_dict,
-        source_lang=source_lang,
-        target_lang=target_lang,
-        engine=engine_used
+        translations=translations,
+        source_lang=request.source_lang,
+        target_lang=request.target_lang,
+        engine=engine
     )
 
 
@@ -885,15 +918,27 @@ async def voice_intent_endpoint(payload: VoiceIntentRequest):
                             except (ValueError, TypeError):
                                 pass
 
+                    fb = parsed.get("feedback", f"Processed voice command for {target_domain.upper()}")
+                    target_lang = (payload.language or "en").lower().strip()
+                    if target_lang != "en" and fb:
+                        trans_fb, _ = await _translate_batch_dict({"fb": fb}, "en", target_lang)
+                        fb = trans_fb.get("fb", fb)
+
                     return VoiceIntentResponse(
                         domain=target_domain,
                         action=parsed.get("action"),
                         parameters=sanitized_params,
-                        feedback=parsed.get("feedback", f"Processed voice command for {target_domain.upper()}"),
+                        feedback=fb,
                         engine="tcet_coe_qwen3.6"
                     )
         except Exception as e:
             print(f"Notice: CoE AI Gateway call failed or timed out ({e}). Falling back to heuristic voice parser.")
 
     # Graceful Fallback
-    return parse_voice_intent_heuristic(payload.text, payload.current_domain)
+    res = parse_voice_intent_heuristic(payload.text, payload.current_domain)
+    target_lang = (payload.language or "en").lower().strip()
+    if target_lang != "en" and res.feedback:
+        trans_fb, _ = await _translate_batch_dict({"fb": res.feedback}, "en", target_lang)
+        if "fb" in trans_fb:
+            res.feedback = trans_fb["fb"]
+    return res

@@ -1006,9 +1006,30 @@ function initLanguageSelector() {
 }
 
 async function translateWholePage() {
+  const brandSub = document.querySelector('.brand .sub');
+  const privacyText = document.getElementById('privacy-text');
+  const langLabel = document.querySelector('.lang-toggle label');
+  const panelLabel = document.querySelector('.panel-label span');
+  const statLang = document.querySelector('.stats .stat:nth-child(1) span');
+  const statAudit = document.querySelector('.stats .stat:nth-child(3) span');
+  const copilotTitle = document.querySelector('.ai-copilot-title span:nth-child(2)');
+  const copilotBadge = document.querySelector('.ai-copilot-badge');
+  const copilotClear = document.getElementById('btn-chat-clear');
+  const chatInput = document.getElementById('chat-input');
+
   if (currentLang === 'en') {
     document.getElementById('hero-h1').textContent = 'Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.';
     document.getElementById('hero-lede').textContent = 'SPASHTA eliminates AI opacity by converting complex credit, insurance, pension, insolvency, and investment scoring into plain-language explanations, interactive visual charts, and spoken voice readouts.';
+    if (brandSub) brandSub.textContent = 'Multilingual Explainable AI Platform';
+    if (privacyText) privacyText.textContent = privacyShieldActive ? 'DPDP Shield: On' : 'Privacy Mode: Off';
+    if (langLabel) langLabel.textContent = 'Language';
+    if (panelLabel) panelLabel.textContent = 'Applicant Profile Parameters';
+    if (statLang) statLang.textContent = 'Indian Languages';
+    if (statAudit) statAudit.textContent = 'Explainable XAI Audit';
+    if (copilotTitle) copilotTitle.textContent = 'AI Underwriting Copilot';
+    if (copilotBadge) copilotBadge.textContent = 'Voice & Text';
+    if (copilotClear) copilotClear.textContent = 'Clear';
+    if (chatInput) chatInput.placeholder = "Type your profile or query (e.g. 'loan 2 lakh, CIBIL 780')...";
     return;
   }
 
@@ -1016,6 +1037,26 @@ async function translateWholePage() {
   const bundle = {
     hero_h1: 'Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.',
     hero_lede: 'SPASHTA eliminates AI opacity by converting complex credit, insurance, pension, insolvency, and investment scoring into plain-language explanations, interactive visual charts, and spoken voice readouts.',
+    brand_sub: 'Multilingual Explainable AI Platform',
+    lang_lbl: 'Language',
+    privacy_mode: privacyShieldActive ? 'DPDP Shield: On' : 'Privacy Mode: Off',
+    param_lbl: 'Applicant Profile Parameters',
+    stat_lang: 'Indian Languages',
+    stat_audit: 'Explainable XAI Audit',
+    copilot_title: 'AI Underwriting Copilot',
+    copilot_badge: 'Voice & Text',
+    copilot_clear: 'Clear',
+    chat_placeholder: "Type your profile or query (e.g. 'loan 2 lakh, CIBIL 780')...",
+    factor_balance: 'Factor Weight Balance',
+    pos_drivers: 'Positive Drivers',
+    neg_drivers: 'Negative Drivers',
+    lowers_approval: 'Lowers Approval',
+    boosts_approval: 'Boosts Approval',
+    visual_weights: 'Visual Shapley Attribution Weights',
+    audit_findings: 'Regulatory Audit & Remediation Findings',
+    view_details: 'View Details ▾',
+    btn_download: 'Download QR Compliance PDF',
+    btn_verify: 'Verify on Registry',
     domain_intro: d.intro,
     verdict_pos: d.decisionWord.pos,
     verdict_neg: d.decisionWord.neg,
@@ -1051,6 +1092,16 @@ async function translateWholePage() {
   if (translated && translated.hero_lede) {
     document.getElementById('hero-lede').textContent = translated.hero_lede;
   }
+  if (brandSub && translated?.brand_sub) brandSub.textContent = translated.brand_sub;
+  if (privacyText && translated?.privacy_mode) privacyText.textContent = translated.privacy_mode;
+  if (langLabel && translated?.lang_lbl) langLabel.textContent = translated.lang_lbl;
+  if (panelLabel && translated?.param_lbl) panelLabel.textContent = translated.param_lbl;
+  if (statLang && translated?.stat_lang) statLang.textContent = translated.stat_lang;
+  if (statAudit && translated?.stat_audit) statAudit.textContent = translated.stat_audit;
+  if (copilotTitle && translated?.copilot_title) copilotTitle.textContent = translated.copilot_title;
+  if (copilotBadge && translated?.copilot_badge) copilotBadge.textContent = translated.copilot_badge;
+  if (copilotClear && translated?.copilot_clear) copilotClear.textContent = translated.copilot_clear;
+  if (chatInput && translated?.chat_placeholder) chatInput.placeholder = translated.chat_placeholder;
 }
 
 function initDomainTabs() {
@@ -1222,7 +1273,8 @@ async function computeShapleyForDomain() {
       },
       body: JSON.stringify({
         domain: currentDomain,
-        inputs: state
+        inputs: state,
+        target_lang: currentLang
       })
     });
     if (resp.ok) {
@@ -1231,6 +1283,12 @@ async function computeShapleyForDomain() {
         shap: data.shap_values,
         baseline: data.baseline_prob,
         full: data.full_prob,
+        verdict: data.verdict,
+        translatedVerdict: data.translated_verdict,
+        explanation: data.explanation,
+        audioSummary: data.audio_summary,
+        translatedCitation: data.translated_citation,
+        factorBreakdown: data.factor_breakdown,
         isServerBacked: true
       };
     }
@@ -1334,7 +1392,7 @@ function createGaugeSvg(scorePercent, isApproved) {
   `;
 }
 
-function createPieChartSvg(rows) {
+function createPieChartSvg(rows, posLabel = 'Positive Drivers', negLabel = 'Negative Drivers') {
   let posSum = 0, negSum = 0;
   rows.forEach(r => {
     if (r.val >= 0) posSum += r.val;
@@ -1356,11 +1414,11 @@ function createPieChartSvg(rows) {
       <div style="font-size:11.5px; font-weight:600; color:#0F172A; line-height:1.4;">
         <div style="color:#15803D; display:flex; align-items:center; gap:4px;">
           <span style="display:inline-block; width:8px; height:8px; background:#16A34A; border-radius:50%;"></span>
-          Positive Drivers: <b>${posPct}%</b>
+          ${posLabel}: <b>${posPct}%</b>
         </div>
         <div style="color:#B91C1C; display:flex; align-items:center; gap:4px;">
           <span style="display:inline-block; width:8px; height:8px; background:#EF4444; border-radius:50%;"></span>
-          Negative Drivers: <b>${negPct}%</b>
+          ${negLabel}: <b>${negPct}%</b>
         </div>
       </div>
     </div>
@@ -1400,7 +1458,8 @@ function renderQrCodeElement(containerId, text) {
 
 async function renderCert() {
   const d = DOMAINS[currentDomain];
-  const { shap, baseline, full, isFederated } = await computeShapleyForDomain();
+  const scoreResult = await computeShapleyForDomain();
+  const { shap, baseline, full, isFederated, isServerBacked } = scoreResult;
 
   let introText = d.intro;
   if (currentLang !== 'en') {
@@ -1409,8 +1468,8 @@ async function renderCert() {
   document.getElementById('domain-intro').innerHTML = introText;
 
   const decided = full >= 0.5;
-  let verdictWord = decided ? d.decisionWord.pos : d.decisionWord.neg;
-  if (currentLang !== 'en') {
+  let verdictWord = scoreResult.translatedVerdict || (decided ? d.decisionWord.pos : d.decisionWord.neg);
+  if (currentLang !== 'en' && !scoreResult.translatedVerdict) {
     verdictWord = await translateService.translateText(verdictWord, 'en', currentLang);
   }
   const verdictClass = decided ? 'pos' : 'neg';
@@ -1420,7 +1479,9 @@ async function renderCert() {
   for (let i = 0; i < d.fields.length; i++) {
     const f = d.fields[i];
     let fname = f.flabel;
-    if (currentLang !== 'en') {
+    if (scoreResult.factorBreakdown && scoreResult.factorBreakdown[i]?.translated_name) {
+      fname = scoreResult.factorBreakdown[i].translated_name;
+    } else if (currentLang !== 'en') {
       fname = await translateService.translateText(f.flabel, 'en', currentLang);
     }
     rows.push({
@@ -1436,15 +1497,19 @@ async function renderCert() {
   const scorePct = Math.round(full * 100);
   const baselinePct = Math.round(baseline * 100);
 
-  const deepEnglishExplanation = generateDeepRegulatoryExplanation(currentDomain, decided, scorePct, baselinePct, posFactors, negFactors);
-  const detailedAudioText = generateConversationalAudioSummary(currentDomain, decided, scorePct, baselinePct, posFactors, negFactors);
+  let sentence = scoreResult.explanation;
+  let voiceText = scoreResult.audioSummary;
 
-  let sentence = deepEnglishExplanation;
-  let voiceText = detailedAudioText;
+  if (!sentence || !voiceText) {
+    const deepEnglishExplanation = generateDeepRegulatoryExplanation(currentDomain, decided, scorePct, baselinePct, posFactors, negFactors);
+    const detailedAudioText = generateConversationalAudioSummary(currentDomain, decided, scorePct, baselinePct, posFactors, negFactors);
+    sentence = deepEnglishExplanation;
+    voiceText = detailedAudioText;
 
-  if (currentLang !== 'en') {
-    sentence = await translateService.translateText(deepEnglishExplanation, 'en', currentLang);
-    voiceText = await translateService.translateText(detailedAudioText, 'en', currentLang);
+    if (currentLang !== 'en') {
+      sentence = await translateService.translateText(deepEnglishExplanation, 'en', currentLang);
+      voiceText = await translateService.translateText(detailedAudioText, 'en', currentLang);
+    }
   }
 
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.val)), 0.001);
@@ -1470,10 +1535,41 @@ async function renderCert() {
   }).join('');
 
   let certTitle = 'Official XAI Compliance Audit Certificate';
-  let certCitation = d.citation;
+  let certCitation = scoreResult.translatedCitation || d.citation;
+  let tDecisionConf = 'Decision Confidence';
+  let tVsBaseline = 'Vs. Baseline';
+  let tFactorBalance = 'Factor Weight Balance';
+  let tPosDrivers = 'Positive Drivers';
+  let tNegDrivers = 'Negative Drivers';
+  let tVisualWeights = 'Visual Shapley Attribution Weights';
+  let tLowersApproval = 'Lowers Approval';
+  let tBoostsApproval = 'Boosts Approval';
+  let tAuditFindings = 'Regulatory Audit & Remediation Findings';
+  let tViewDetails = 'View Details ▾';
+  let tDownloadPdf = 'Download QR Compliance PDF';
+  let tVerifyRegistry = 'Verify on Registry';
+  let tVoiceMeta = '22 Indic Languages Voice';
+  let tStamp = privacyShieldActive ? 'DPDP ON-DEVICE AUDIT' : 'REGULATORY AUDIT READY';
+
   if (currentLang !== 'en') {
     certTitle = await translateService.translateText(certTitle, 'en', currentLang);
-    certCitation = await translateService.translateText(certCitation, 'en', currentLang);
+    if (!scoreResult.translatedCitation) {
+      certCitation = await translateService.translateText(certCitation, 'en', currentLang);
+    }
+    tDecisionConf = await translateService.translateText(tDecisionConf, 'en', currentLang);
+    tVsBaseline = await translateService.translateText(tVsBaseline, 'en', currentLang);
+    tFactorBalance = await translateService.translateText(tFactorBalance, 'en', currentLang);
+    tPosDrivers = await translateService.translateText(tPosDrivers, 'en', currentLang);
+    tNegDrivers = await translateService.translateText(tNegDrivers, 'en', currentLang);
+    tVisualWeights = await translateService.translateText(tVisualWeights, 'en', currentLang);
+    tLowersApproval = await translateService.translateText(tLowersApproval, 'en', currentLang);
+    tBoostsApproval = await translateService.translateText(tBoostsApproval, 'en', currentLang);
+    tAuditFindings = await translateService.translateText(tAuditFindings, 'en', currentLang);
+    tViewDetails = await translateService.translateText(tViewDetails, 'en', currentLang);
+    tDownloadPdf = await translateService.translateText(tDownloadPdf, 'en', currentLang);
+    tVerifyRegistry = await translateService.translateText(tVerifyRegistry, 'en', currentLang);
+    tVoiceMeta = await translateService.translateText(tVoiceMeta, 'en', currentLang);
+    tStamp = await translateService.translateText(tStamp, 'en', currentLang);
   }
 
   // 1. Create or retrieve certificate
@@ -1530,7 +1626,7 @@ async function renderCert() {
         <div class="icon-badge">${iconSymbol}</div>
         <div>
           <div class="status-title">${verdictWord}</div>
-          <div class="status-sub">Decision Confidence: <b>${scorePct}%</b> (Vs. Baseline ${baselinePct}%)</div>
+          <div class="status-sub">${tDecisionConf}: <b>${scorePct}%</b> (${tVsBaseline} ${baselinePct}%)</div>
         </div>
       </div>
     </div>
@@ -1552,7 +1648,7 @@ async function renderCert() {
         </div>
       </div>
       <div class="voice-toolbar-meta">
-        <span>🗣️ 22 Indic Languages Voice</span>
+        <span>🗣️ ${tVoiceMeta}</span>
       </div>
     </div>
 
@@ -1561,18 +1657,18 @@ async function renderCert() {
         ${createGaugeSvg(scorePct, decided)}
       </div>
       <div class="pie-box">
-        <div class="pie-box-title">Factor Weight Balance</div>
-        ${createPieChartSvg(rows)}
+        <div class="pie-box-title">${tFactorBalance}</div>
+        ${createPieChartSvg(rows, tPosDrivers, tNegDrivers)}
       </div>
     </div>
 
     <div class="factors-section">
       <div class="factors-header">
-        <div class="factors-label">Visual Shapley Attribution Weights</div>
+        <div class="factors-label">${tVisualWeights}</div>
         <div class="factors-legend">
-          <span class="legend-item legend-neg"><span class="legend-dot neg"></span> Lowers Approval</span>
+          <span class="legend-item legend-neg"><span class="legend-dot neg"></span> ${tLowersApproval}</span>
           <span class="legend-divider">|</span>
-          <span class="legend-item legend-pos"><span class="legend-dot pos"></span> Boosts Approval</span>
+          <span class="legend-item legend-pos"><span class="legend-dot pos"></span> ${tBoostsApproval}</span>
         </div>
       </div>
       <div class="factors-list">
@@ -1584,10 +1680,10 @@ async function renderCert() {
       <summary class="audit-summary-summary">
         <div class="audit-summary-summary-left">
           <span style="font-size:13px;">📋</span>
-          <span>Regulatory Audit & Remediation Findings</span>
+          <span>${tAuditFindings}</span>
           <span class="audit-summary-badge">${DOMAINS[currentDomain].name}</span>
         </div>
-        <span class="audit-summary-toggle">View Details ▾</span>
+        <span class="audit-summary-toggle">${tViewDetails}</span>
       </summary>
       <div class="audit-summary-content">
         <div class="cert-sentence">${sentence}</div>
@@ -1596,15 +1692,15 @@ async function renderCert() {
 
     <div class="cert-footer">
       <div class="citation">${certCitation}</div>
-      <div class="stamp">${privacyShieldActive ? 'DPDP ON-DEVICE AUDIT' : 'REGULATORY AUDIT READY'}</div>
+      <div class="stamp">${tStamp}</div>
     </div>
 
     <div class="cert-actions no-print" style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
       <button type="button" class="btn-export" style="flex:1;" onclick="exportComplianceCertificatePDF('${certId}')">
-        📄 Download QR Compliance PDF
+        📄 ${tDownloadPdf}
       </button>
       <button type="button" class="btn-export" style="flex:1; background:linear-gradient(135deg, #059669 0%, #047857 100%);" onclick="verifyCertificate('${certId}')">
-        🛡️ Verify on Registry
+        🛡️ ${tVerifyRegistry}
       </button>
     </div>
   `;

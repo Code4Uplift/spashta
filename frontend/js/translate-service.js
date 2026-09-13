@@ -1,5 +1,53 @@
 const SPASHTA_API_URL = window.SPASHTA_API_URL || 'http://localhost:8000';
 
+function humanizeSpeechText(text, lang = 'en') {
+  if (!text) return '';
+  let str = String(text);
+
+  const percentWords = {
+    hi: 'प्रतिशत',
+    mr: 'टक्के',
+    bn: 'শতাংশ',
+    ta: 'சதவீதம்',
+    te: 'శాతం',
+    gu: 'ટકા',
+    kn: 'ಪ್ರತಿಶತ',
+    ml: 'ശതമാനം',
+    pa: 'ਪ੍ਰਤੀਸ਼ਤ',
+    or: 'ପ୍ରତିଶତ',
+    ur: 'فیصد',
+    en: 'percent'
+  };
+
+  const rupeeWords = {
+    hi: 'रुपये',
+    mr: 'रुपये',
+    bn: 'টাকা',
+    ta: 'ரூபாய்',
+    te: 'రూపాయలు',
+    gu: 'રૂપિયા',
+    kn: 'ರೂಪಾಯಿ',
+    ml: 'രൂപ',
+    pa: 'ਰੁਪਏ',
+    ur: 'روپے',
+    en: 'Rupees'
+  };
+
+  const pWord = percentWords[lang] || percentWords.hi || 'percent';
+  const rWord = rupeeWords[lang] || rupeeWords.hi || 'Rupees';
+
+  // Currency symbol expansion: ₹50,000 -> 50000 रुपये
+  str = str.replace(/₹\s*([0-9,]+(?:\.[0-9]+)?)/g, '$1 ' + rWord);
+  // Percentage expansion: 88% -> 88 प्रतिशत
+  str = str.replace(/([0-9]+(?:\.[0-9]+)?)\s*%/g, '$1 ' + pWord);
+  // Word 'percent' in Indic text
+  if (lang !== 'en') {
+    str = str.replace(/\bpercent\b/gi, pWord);
+  }
+
+  return str;
+}
+
 const STATIC_TRANSLATIONS = {
   hi: {
     'CREDIT APPROVED': 'ऋण स्वीकृत (Approved)',
@@ -50,7 +98,33 @@ const STATIC_TRANSLATIONS = {
     'Perennial Irrigation Source Access': 'बारहमासी सिंचाई स्रोत सुविधा',
     'PM-Fasal Bima Yojana (PMFBY) Insured': 'प्रधानमंत्री फसल बीमा योजना बीमित',
     'Official XAI Compliance Audit Certificate': 'आधिकारिक एक्सएआई अनुपालन ऑडिट प्रमाणपत्र',
-    'Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.': 'प्रत्येक एआई निर्णय, 22 भारतीय भाषाओं में दृश्य रूप से समझाया और बोला गया।'
+    'Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.': 'प्रत्येक एआई निर्णय, 22 भारतीय भाषाओं में दृश्य रूप से समझाया और बोला गया।',
+    'SPASHTA eliminates AI opacity by converting complex credit, insurance, pension, insolvency, and investment scoring into plain-language explanations, interactive visual charts, and spoken voice readouts.': 'स्पष्ट एआई अस्पष्टता को समाप्त करता है और जटिल क्रेडिट, बीमा, पेंशन, दिवालियापन और निवेश स्कोरिंग को सरल भाषा के स्पष्टीकरण, दृश्य चार्ट और बोले गए वॉयस रीडआउट में परिवर्तित करता है।',
+    'Language': 'भाषा',
+    'Privacy Mode: Off': 'गोपनीयता मोड: बंद',
+    'DPDP Shield: On': 'डीपीडीपी शील्ड: चालू',
+    'Applicant Profile Parameters': 'आवेदक प्रोफ़ाइल पैरामीटर',
+    'Factor Weight Balance': 'घटक भार संतुलन',
+    'Positive Drivers': 'सकारात्मक चालक',
+    'Negative Drivers': 'जोखिम कारक',
+    'Positive Drivers:': 'सकारात्मक चालक:',
+    'Negative Drivers:': 'जोखिम कारक:',
+    'Lowers Approval': 'स्वीकृति घटाता है',
+    'Boosts Approval': 'स्वीकृति बढ़ाता है',
+    'Visual Shapley Attribution Weights': 'दृश्य शापले विशेषता भार',
+    'Regulatory Audit & Remediation Findings': 'विनियामक ऑडिट व निवारण निष्कर्ष',
+    'View Details ▾': 'विवरण देखें ▾',
+    'Decision Confidence': 'निर्णय विश्वास',
+    'Vs. Baseline': 'बनाम आधार रेखा',
+    'Download QR Compliance PDF': 'क्यूआर अनुपालन पीडीएफ डाउनलोड करें',
+    'Verify on Registry': 'रजिस्ट्री पर सत्यापित करें',
+    'AI Underwriting Copilot': 'एआई हामीदारी कोपायलट',
+    'Voice & Text': 'आवाज और पाठ',
+    'Clear': 'हटाएं',
+    'Indian Languages': 'भारतीय भाषाएं',
+    'Explainable XAI Audit': 'व्याख्यायोग्य एक्सएआई ऑडिट',
+    'Type your profile or query (e.g. \'loan 2 lakh, CIBIL 780\')...': 'अपनी प्रोफ़ाइल या प्रश्न लिखें (उदा. \'ऋण 2 लाख, सिबिल 780\')...',
+    'Listen English Audio Advisory': 'अंग्रेजी ऑडियो सलाह सुनें'
   },
   mr: {
     'CREDIT APPROVED': 'कर्ज मंजूर (Approved)',
@@ -99,9 +173,34 @@ const STATIC_TRANSLATIONS = {
     'Annual Harvest Market Value (₹)': 'वार्षिक पीक बाजार मूल्य (₹)',
     'Informal Moneylender Debt Share (%)': 'सावकारी कर्जाचा वाटा (%)',
     'Perennial Irrigation Source Access': 'बारमाही जलसिंचन सुविधा',
-    'PM-Fasal Bima Yojana (PMFBY) Insured': 'पंतप्रधान पीक विमा योजना संरक्षित',
     'Official XAI Compliance Audit Certificate': 'अधिकृत एक्सएआय अनुपालन ऑडिट प्रमाणपत्र',
-    'Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.': 'प्रत्येक एआय निर्णय, 22 भारतीय भाषांमध्ये दृश्य स्वरूपात आणि आवाजात स्पष्ट केला जातो.'
+    'Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.': 'प्रत्येक एआय निर्णय, 22 भारतीय भाषांमध्ये दृश्य स्वरूपात आणि आवाजात स्पष्ट केला जातो.',
+    'SPASHTA eliminates AI opacity by converting complex credit, insurance, pension, insolvency, and investment scoring into plain-language explanations, interactive visual charts, and spoken voice readouts.': 'स्पष्ट एआय अपारदर्शकता दूर करते आणि जटिल क्रेडिट, विमा, पेन्शन, दिवाळखोरी आणि गुंतवणूक स्कोअरिंगचे साध्या भाषेतील स्पष्टीकरण, परस्परसंवादी व्हिज्युअल चार्ट आणि व्हॉइस रीडआउटमध्ये रूपांतर करते.',
+    'Language': 'भाषा',
+    'Privacy Mode: Off': 'गोपनीयता मोड: बंद',
+    'DPDP Shield: On': 'डीपीडीपी शील्ड: चालू',
+    'Applicant Profile Parameters': 'अर्जदार प्रोफाइल पॅरामीटर्स',
+    'Factor Weight Balance': 'घटक वजन संतुलन',
+    'Positive Drivers': 'सकारात्मक घटक',
+    'Negative Drivers': 'नकारात्मक घटक',
+    'Positive Drivers:': 'सकारात्मक घटक:',
+    'Negative Drivers:': 'नकारात्मक घटक:',
+    'Lowers Approval': 'मंजुरी कमी करते',
+    'Boosts Approval': 'मंजुरी वाढवते',
+    'Visual Shapley Attribution Weights': 'दृश्य शापले ॲट्रिब्युशन वजन',
+    'Regulatory Audit & Remediation Findings': 'नियामक ऑडिट आणि उपाययोजना निष्कर्ष',
+    'View Details ▾': 'तपशील पहा ▾',
+    'Decision Confidence': 'निर्णय आत्मविश्वास',
+    'Vs. Baseline': 'बनाम बेसलाइन',
+    'Download QR Compliance PDF': 'क्यूआर अनुपालन पीडीएफ डाउनलोड करा',
+    'Verify on Registry': 'नोंदणीवर पडताळणी करा',
+    'AI Underwriting Copilot': 'एआय अंडररायटिंग कोपायलट',
+    'Voice & Text': 'आवाज आणि मजकूर',
+    'Clear': 'साफ करा',
+    'Indian Languages': 'भारतीय भाषा',
+    'Explainable XAI Audit': 'स्पष्टीकरणात्मक एक्सएआय ऑडिट',
+    'Type your profile or query (e.g. \'loan 2 lakh, CIBIL 780\')...': 'तुमचे प्रोफाइल किंवा प्रश्न टाइप करा (उदा. \'कर्ज 2 लाख, सिबिल 780\')...',
+    'Listen English Audio Advisory': 'इंग्रजी ऑडिओ सल्ला ऐका'
   },
   bn: {
     'CREDIT APPROVED': 'ঋণ অনুমোদিত (Approved)',
@@ -351,7 +450,26 @@ class InstantTranslateService {
       return STATIC_TRANSLATIONS[targetLang][clean];
     }
 
-    // 2. Direct browser Google GTX fetch (fast, client residential IP, no datacenter 429)
+    // 2. Direct browser Google clients5 dict-chrome-ex (Fast, resilient against 429)
+    try {
+      const u = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${sourceLang}&tl=${targetLang}&q=${encodeURIComponent(clean)}`;
+      const res = await fetch(u);
+      if (res.ok) {
+        const d = await res.json();
+        if (Array.isArray(d)) {
+          const trans = d.map(x => (x ? String(x) : '')).join('').trim();
+          if (trans && (sourceLang === targetLang || trans !== clean)) {
+            return trans;
+          }
+        } else if (typeof d === 'string' && d.trim() && d !== clean) {
+          return d.trim();
+        }
+      }
+    } catch (e) {
+      // Clients5 fallback
+    }
+
+    // 3. Direct browser Google GTX fetch
     try {
       const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(clean)}`;
       const response = await fetch(url);
@@ -371,7 +489,7 @@ class InstantTranslateService {
       // Browser GTX fallback
     }
 
-    // 3. MyMemory API with verified email parameter
+    // 4. MyMemory API with verified email parameter
     try {
       const url2 = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=${sourceLang}|${targetLang}&de=spashta.audit.ai@gmail.com`;
       const response2 = await fetch(url2);
@@ -386,7 +504,7 @@ class InstantTranslateService {
       // MyMemory fallback
     }
 
-    // 4. Server-side FastAPI Translation Proxy
+    // 5. Server-side FastAPI Translation Proxy
     try {
       const resp = await fetch(`${SPASHTA_API_URL}/translate`, {
         method: 'POST',
@@ -413,14 +531,32 @@ class InstantTranslateService {
     return textChunk;
   }
 
-  speakText(text, lang = 'en') {
+  async speakText(text, lang = 'en') {
     this.stopAudio();
     if (!text) return;
 
-    this.currentTextToSpeak = text;
-    this.currentAudioLang = lang || 'en';
+    let targetLang = lang || 'en';
+    let textToSpeak = text;
 
-    const cleanText = text
+    // Safety: If target language is Indic, but input text contains English words, translate it first!
+    if (targetLang !== 'en' && /[a-zA-Z]{4,}/.test(textToSpeak)) {
+      try {
+        const trans = await this.translateText(textToSpeak, 'en', targetLang);
+        if (trans && trans.trim()) {
+          textToSpeak = trans.trim();
+        }
+      } catch (err) {
+        console.warn('Pre-TTS Indic translation fallback:', err);
+      }
+    }
+
+    // Humanize spoken numbers, currency, and percentages in the target language
+    textToSpeak = humanizeSpeechText(textToSpeak, targetLang);
+
+    this.currentTextToSpeak = textToSpeak;
+    this.currentAudioLang = targetLang;
+
+    const cleanText = textToSpeak
       .replace(/<[^>]*>?/gm, '')
       .replace(/[•\t\r]/g, '')
       .replace(/\n+/g, '. ');
@@ -430,10 +566,11 @@ class InstantTranslateService {
 
     rawSentences.forEach(s => {
       let str = s.trim();
-      while (str.length > 140) {
-        let cut = str.lastIndexOf(' ', 140);
-        if (cut === -1) cut = 140;
-        this.currentAudioChunks.push(str.slice(0, cut));
+      while (str.length > 130) {
+        let cut = str.lastIndexOf(' ', 130);
+        if (cut === -1 || cut < 40) cut = str.lastIndexOf(',', 130);
+        if (cut === -1 || cut < 40) cut = 130;
+        this.currentAudioChunks.push(str.slice(0, cut).trim());
         str = str.slice(cut).trim();
       }
       if (str.length > 0) {

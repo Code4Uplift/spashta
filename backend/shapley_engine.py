@@ -357,33 +357,148 @@ def score_domain_inputs(domain_key: str, inputs: Dict[str, float]) -> Dict[str, 
     shapley_result = calculate_shapley(features, domain["intercept"])
     full_prob = shapley_result["full"]
     baseline_prob = shapley_result["baseline"]
+def generate_explanations(domain_key: str, decided: bool, score_pct: int, baseline_pct: int,
+                          pos_factors: List[Dict[str, Any]], neg_factors: List[Dict[str, Any]]) -> Tuple[str, str]:
+    domain = DOMAINS[domain_key]
+    domain_title = domain["fullName"]
+    verb = domain.get("decisionVerb", "application")
+
+    pos_names = ", ".join(f["name"] for f in pos_factors)
+    neg_names = ", ".join(f["name"] for f in neg_factors)
+
+    if decided:
+        explanation = (
+            f"Official Audit Summary ({domain_title}):\n"
+            f"1. VERDICT: Your {verb} is officially APPROVED with an overall confidence score of {score_pct}% "
+            f"(regulatory baseline threshold: {baseline_pct}%).\n\n"
+            f"2. POSITIVE DRIVERS: Approval was primarily driven by your {pos_names or 'overall balanced profile'}.\n\n"
+        )
+        if neg_factors:
+            explanation += f"3. RISK FACTORS TO MONITOR: Your {neg_names} created slight downward pressure, though within acceptable limits.\n\n"
+        explanation += (
+            f"4. ACTIONABLE ADVICE: Maintain current financial prudence to preserve your prime regulatory rating.\n\n"
+            f"5. REGULATORY RIGHTS: Certified under {domain['citation']}."
+        )
+
+        audio_summary = (
+            f"Regulatory Underwriting Advisory for {domain_title}. "
+            f"Your application has been officially APPROVED with an overall score of {score_pct} percent, exceeding the regulatory baseline of {baseline_pct} percent. "
+        )
+        if pos_names:
+            audio_summary += f"This decision is strongly supported by positive contributions from your {pos_names}. "
+        if neg_names:
+            audio_summary += f"Minor downward risk was noted in your {neg_names}, but remains within acceptable limits. "
+        audio_summary += f"Ensure timely repayments to preserve your prime rating. This assessment is compliant with {domain['citation']}."
+    else:
+        explanation = (
+            f"Official Audit Summary ({domain_title}):\n"
+            f"1. VERDICT: Your {verb} was NOT APPROVED at this time, receiving an eligibility score of {score_pct}% "
+            f"(below the required regulatory baseline threshold of {baseline_pct}%).\n\n"
+            f"2. PRIMARY REJECTION CAUSES: The score was heavily reduced by your {neg_names or 'high risk indicators'}.\n\n"
+        )
+        if pos_factors:
+            explanation += f"3. MITIGATING STRENGTHS: Your {pos_names} provided partial support, but was insufficient to offset risk factors.\n\n"
+        top_neg = neg_factors[0]["name"] if neg_factors else "Risk Indicators"
+        explanation += (
+            f"4. STEP-BY-STEP REMEDIATION PLAN:\n"
+            f"   • Step 1: Mitigate primary risk driver: {top_neg}.\n"
+            f"   • Step 2: Optimize balance sheet parameters within recommended regulatory guidelines.\n"
+            f"   • Step 3: Re-apply after 60 to 90 days.\n\n"
+            f"5. REGULATORY RIGHTS: Certified under {domain['citation']}. You maintain the legal right to re-apply once risk factors are remediated."
+        )
+
+        audio_summary = (
+            f"Regulatory Underwriting Advisory for {domain_title}. "
+            f"We regret to inform you that your application was NOT APPROVED at this time. "
+            f"Your eligibility score reached {score_pct} percent, which falls below the mandatory regulatory threshold of {baseline_pct} percent. "
+        )
+        if neg_names:
+            audio_summary += f"The primary risk factors pulling down your score are your {neg_names}. "
+        if pos_factors:
+            audio_summary += f"Although your {pos_names} provided partial support, it was insufficient to offset the risk factors. "
+        audio_summary += f"To qualify upon re-application, please address your {top_neg}. Under regulatory guidelines, you have the right to re-apply once mitigated."
+
+    return explanation, audio_summary
+
+
+def score_domain_inputs(domain_key: str, inputs: Dict[str, float]) -> Dict[str, Any]:
+    domain = DOMAINS.get(domain_key)
+    if not domain:
+        raise ValueError(f"Unknown domain: {domain_key}")
+
+    features = []
+    for f in domain["fields"]:
+        val = float(inputs.get(f["key"], f["base"]))
+        features.append({
+            "key": f["key"],
+            "flabel": f["flabel"],
+            "coef": f["coef"],
+            "base": f["base"],
+            "value": val
+        })
+
+    shapley_result = calculate_shapley(features, domain["intercept"])
+    full_prob = shapley_result["full"]
+    baseline_prob = shapley_result["baseline"]
     decided = full_prob >= 0.5
     verdict = domain["decisionWord"]["pos"] if decided else domain["decisionWord"]["neg"]
 
     factor_breakdown = []
+    pos_factors = []
+    neg_factors = []
     for i, f in enumerate(features):
-        factor_breakdown.append({
+        attr = shapley_result["shap"][i]
+        is_pos = attr >= 0
+        direction = "positive" if is_pos else "negative"
+        wt_pct = round(abs(attr) * 100)
+        if is_pos:
+            impact = f"Positive driver (+{wt_pct}% weight) supporting approval."
+        else:
+            impact = f"Risk factor (-{wt_pct}% weight) reducing score."
+
+        item = {
             "key": f["key"],
             "name": f["flabel"],
-            "attribution": shapley_result["shap"][i],
+            "translated_name": f["flabel"],
+            "attribution": attr,
             "value": f["value"],
             "baseline": f["base"],
-            "coef": f["coef"]
-        })
+            "coef": f["coef"],
+            "impact": impact,
+            "direction": direction
+        }
+        factor_breakdown.append(item)
+        if is_pos:
+            pos_factors.append(item)
+        else:
+            neg_factors.append(item)
+
+    pos_factors.sort(key=lambda x: abs(x["attribution"]), reverse=True)
+    neg_factors.sort(key=lambda x: abs(x["attribution"]), reverse=True)
+
+    score_pct = round(full_prob * 100)
+    baseline_pct = round(baseline_prob * 100)
+    explanation, audio_summary = generate_explanations(
+        domain_key, decided, score_pct, baseline_pct, pos_factors, neg_factors
+    )
 
     return {
         "domain": domain_key,
         "full_prob": full_prob,
         "baseline_prob": baseline_prob,
-        "score_pct": round(full_prob * 100),
-        "baseline_pct": round(baseline_prob * 100),
+        "score_pct": score_pct,
+        "baseline_pct": baseline_pct,
         "verdict": verdict,
+        "translated_verdict": verdict,
         "decided": decided,
         "shap_values": shapley_result["shap"],
         "factor_breakdown": factor_breakdown,
         "intercept": domain["intercept"],
         "citation": domain["citation"],
-        "cert_prefix": domain["certPrefix"]
+        "translated_citation": domain["citation"],
+        "cert_prefix": domain["certPrefix"],
+        "explanation": explanation,
+        "audio_summary": audio_summary
     }
 
 

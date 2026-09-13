@@ -62,6 +62,31 @@ def test_score_rbi_valid(client, auth_headers):
     assert abs(shap_sum - prob_delta) < 1e-6, f"Efficiency axiom violated: sum(phi)={shap_sum}, delta_prob={prob_delta}"
 
 
+def test_score_multilingual_response(client, auth_headers):
+    payload = {
+        "domain": "rbi",
+        "inputs": {
+            "score": 800,
+            "loan_amount": 200000,
+            "income": 100000,
+            "foir": 20,
+            "delinquency": 0,
+            "emp_status": 2
+        },
+        "target_lang": "hi"
+    }
+    response = client.post("/score", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["domain"] == "rbi"
+    assert data["verdict"] == "CREDIT APPROVED"
+    assert "explanation" in data and len(data["explanation"]) > 0
+    assert "audio_summary" in data and len(data["audio_summary"]) > 0
+    assert len(data["factor_breakdown"]) == 6
+    assert data["factor_breakdown"][0]["impact"] is not None
+
+
+
 def test_score_out_of_range_input(client, auth_headers):
     payload = {
         "domain": "rbi",
