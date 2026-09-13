@@ -232,3 +232,33 @@ def test_voice_intent_tcet_coe_thinking_tokens_stripped(client, monkeypatch):
         assert data["parameters"].get("income") == 35000.0
         assert data["engine"] == "tcet_coe_qwen3.6"
 
+
+def test_voice_intent_civil_spelling_and_auto_scale(client):
+    """Test common speech-to-text transcriptions like 'civil 80' scaling to 800, and 'civil 800'."""
+    res1 = client.post("/voice-intent", json={"text": "civil 80", "current_domain": "irdai"})
+    assert res1.status_code == 200
+    assert res1.json()["domain"] == "rbi"
+    assert res1.json()["parameters"].get("score") == 800.0
+
+    res2 = client.post("/voice-intent", json={"text": "civil 800", "current_domain": "irdai"})
+    assert res2.status_code == 200
+    assert res2.json()["domain"] == "rbi"
+    assert res2.json()["parameters"].get("score") == 800.0
+
+
+def test_voice_intent_salary_and_loan_payment(client):
+    """Test 'I earn 80000 per month and pay 40000 as loan per month' extracts both income and loan."""
+    res = client.post("/voice-intent", json={"text": "I earn 80000 per month and pay 40000 as loan per month", "current_domain": "rbi"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["parameters"].get("income") == 80000.0
+    assert data["parameters"].get("loan_amount") == 40000.0
+
+
+def test_voice_intent_monthly_emi_deducted(client):
+    """Test 'i have 23212 as monthly emi dedcuted from salary' extracts FOIR ratio."""
+    res = client.post("/voice-intent", json={"text": "i have 23212 as monthly emi dedcuted from salary", "current_domain": "rbi"})
+    assert res.status_code == 200
+    data = res.json()
+    assert "foir" in data["parameters"]
+    assert data["domain"] == "rbi"

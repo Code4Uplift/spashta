@@ -443,16 +443,16 @@ def _extract_number_with_unit(segment: str) -> float | None:
 
 def _extract_param_value(text: str, keywords: list[str]) -> float | None:
     for kw in keywords:
-        # Pattern 1: Keyword followed by number/multiplier (e.g. "income 50000", "loan of 2 lakhs", "income is 700")
-        p1 = rf"\b{re.escape(kw)}\b(?:\s+(?:is|was|hai|of|around|to|=|at))?\s*(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)"
+        # Pattern 1: Keyword followed by optional separator words then number (e.g. "income 50000", "loan of 2 lakhs", "civil score 800")
+        p1 = rf"\b{re.escape(kw)}\b(?:\s+(?:is|was|hai|of|around|to|=|at|score|target))?\s*(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)"
         m1 = re.search(p1, text, re.IGNORECASE)
         if m1:
             val = _extract_number_with_unit(m1.group(1))
             if val is not None:
                 return val
 
-        # Pattern 2: Number/multiplier followed by keyword (e.g. "5 lakh rupees income", "50000 salary", "2 lakhs loan")
-        p2 = rf"(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)\s*(?:rupees|rs|inr|रुपये|per month|प्रति माह|दरमहा)?\s*\b{re.escape(kw)}\b"
+        # Pattern 2: Number/multiplier followed by optional separator words then keyword (e.g. "5 lakh rupees income", "50000 salary", "40000 as loan", "23212 as monthly emi")
+        p2 = rf"(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)\s*(?:rupees|rs|inr|रुपये|per month|प्रति माह|दरमहा|as|of|for|monthly|towards)?\s*\b{re.escape(kw)}\b"
         m2 = re.search(p2, text, re.IGNORECASE)
         if m2:
             val = _extract_number_with_unit(m2.group(1))
@@ -483,7 +483,7 @@ def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> 
         detected_domain = "sebi"
     elif any(k in lower for k in ["irdai", "insurance", "claim", "health", "hospital", "vintage", "बीमा", "विमा", "क्लेम", "दावा", "पॉलिसी"]):
         detected_domain = "irdai"
-    elif any(k in lower for k in ["rbi", "reserve bank", "credit", "loan", "cibil", "बैंक", "बँक", "कर्ज", "ऋण", "लोन", "सिबिल"]):
+    elif any(k in lower for k in ["rbi", "reserve bank", "credit", "loan", "cibil", "civil", "cebil", "cibal", "बैंक", "बँक", "कर्ज", "ऋण", "लोन", "सिबिल", "सिविल", "emi", "foir"]):
         detected_domain = "rbi"
     elif any(k in lower for k in ["pfrda", "pension", "retirement", "nps", "annuity", "पेंशन", "पेन्शन", "निवृत्ती", "एनपीएस"]):
         detected_domain = "pfrda"
@@ -531,22 +531,51 @@ def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> 
     # 2. Multi-parameter numerical extraction
     norm_text = _parse_multipliers_in_text(lower)
 
-    # Score (RBI)
-    score_val = _extract_param_value(norm_text, ["score", "cibil", "credit score", "सिबिल", "स्कोर"])
-    if score_val is not None and 300 <= score_val <= 900:
-        params["score"] = score_val
-        target_domain = "rbi"
+    # Score (RBI) - supports CIBIL, civil, cebil, etc.
+    score_val = _extract_param_value(norm_text, ["score", "cibil", "credit score", "civil", "cebil", "cibal", "sebil", "sybil", "sibyl", "सिविल", "सिबिल", "क्रेडिट स्कोर", "स्कोर"])
+    if score_val is not None:
+        if 30 <= score_val <= 90:
+            score_val = score_val * 10
+        if 300 <= score_val <= 900:
+            params["score"] = score_val
+            target_domain = "rbi"
 
     # Loan Amount (RBI)
-    loan_val = _extract_param_value(norm_text, ["loan", "borrow", "loan amount", "need a loan of", "debt", "कर्ज", "लोन", "ऋण"])
+    loan_val = _extract_param_value(norm_text, ["loan", "borrow", "loan amount", "need a loan of", "pay as loan", "as loan", "debt", "कर्ज", "लोन", "ऋण"])
     if loan_val is not None and loan_val >= 1000:
         params["loan_amount"] = loan_val
         target_domain = "rbi"
 
     # Income / Net worth / Salary
-    inc_val = _extract_param_value(norm_text, ["income", "earn", "salary", "net worth", "networth", "wealth", "पगार", "वेतन", "आय", "कमाई", "आमदनी", "आवक"])
+    inc_val = _extract_param_value(norm_text, ["income", "earn", "earning", "salary", "net worth", "networth", "wealth", "पगार", "वेतन", "आय", "कमाई", "आमदनी", "आवक"])
     if inc_val is not None:
         params["income"] = inc_val
+
+    # FOIR / Existing obligation / EMI (RBI)
+    foir_val = _extract_param_value(norm_text, ["foir", "emi", "monthly emi", "obligation", "deducted", "deduction", "हप्ता", "ईएमआई", "हफ्ता"])
+    if foir_val is not None:
+        if foir_val <= 100:
+            params["foir"] = foir_val
+        else:
+            # Absolute EMI amount deducted from monthly salary: calculate percentage
+            inc = params.get("income", 50000.0)
+            calc_foir = round((foir_val / inc) * 100)
+            params["foir"] = min(90.0, max(5.0, float(calc_foir)))
+        target_domain = "rbi"
+
+    # Delinquency / DPD (RBI)
+    dpd_val = _extract_param_value(norm_text, ["dpd", "delinquency", "default", "late", "delay", "डिफ़ॉल्ट", "देरी", "थकीत", "उशीर"])
+    if dpd_val is not None and dpd_val <= 10:
+        params["delinquency"] = dpd_val
+        target_domain = "rbi"
+
+    # Employment Category (RBI)
+    if any(w in lower for w in ["salaried", "corporate", "govt", "government", "नोकरी", "नौकरी"]):
+        params["emp_status"] = 1.0
+        target_domain = "rbi"
+    elif any(w in lower for w in ["self employed", "business", "freelance", "व्यवसाय"]):
+        params["emp_status"] = 0.0
+        target_domain = "rbi"
 
     # Policy Vintage / Tenure (IRDAI)
     vin_val = _extract_param_value(norm_text, ["vintage", "policy vintage", "policy age", "tenure"])
@@ -589,6 +618,7 @@ def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> 
     if age_val is not None and 18 <= age_val <= 75:
         params["age"] = age_val
         target_domain = "pfrda"
+
 
     # Sanitize and clamp all extracted parameters
     domain_cfg = DOMAINS.get(target_domain, {})

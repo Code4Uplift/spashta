@@ -71,7 +71,7 @@ DOMAINS: Dict[str, Dict[str, Any]] = {
                 "key": "loan_amount",
                 "label": "Requested Loan Amount (₹)",
                 "flabel": "Requested Loan Amount",
-                "min": 50000.0, "max": 2500000.0, "step": 25000.0, "base": 500000.0, "coef": -0.0000008, "type": "range"
+                "min": 10000.0, "max": 2500000.0, "step": 10000.0, "base": 500000.0, "coef": -0.0000008, "type": "range"
             },
             {
                 "key": "income",

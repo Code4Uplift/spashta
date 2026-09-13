@@ -211,17 +211,19 @@ function initSpeechRecognition() {
   speechRecognizer.continuous = false;
   speechRecognizer.interimResults = true;
 
-  dictateBtn.addEventListener('click', () => {
-    if (isDictating) {
-      stopVoiceDictate();
-    } else {
-      startVoiceDictate();
-    }
-  });
+  if (dictateBtn) {
+    dictateBtn.addEventListener('click', () => {
+      if (isDictating) {
+        stopVoiceDictate();
+      } else {
+        startVoiceDictate();
+      }
+    });
+  }
 
   speechRecognizer.onstart = () => {
     isDictating = true;
-    dictateBtn.classList.add('listening');
+    if (dictateBtn) dictateBtn.classList.add('listening');
     const textSpan = document.getElementById('btn-dictate-text');
     if (textSpan) textSpan.textContent = 'Stop Listening';
     const chatMicBtn = document.getElementById('chat-mic-btn');
@@ -248,6 +250,10 @@ function initSpeechRecognition() {
     const currentText = (final || interim).trim();
     if (currentText && statusText) {
       statusText.textContent = `🗣️ "${currentText}"`;
+    }
+    const chatInput = document.getElementById('chat-input');
+    if (currentText && chatInput && isDictating) {
+      chatInput.value = currentText;
     }
 
     if (event.results[0].isFinal || final) {
@@ -434,7 +440,7 @@ function removeChatThinking() {
 function highlightAttributionBars() {
   const cert = document.getElementById('cert');
   if (!cert) return;
-  const elements = cert.querySelectorAll('.factor-card, .verdict-hero, .visual-analytics');
+  const elements = cert.querySelectorAll('.factor-row, .factor-card, .verdict-hero, .visual-analytics');
   elements.forEach(el => {
     el.classList.remove('bar-highlight-pulse');
     void el.offsetWidth;
@@ -660,7 +666,7 @@ function extractSpokenNumber(text) {
 const SPOKEN_DOMAIN_VOCAB = {
   sebi: ['sebi', 'stock', 'stocks', 'trading', 'trade', 'shares', 'investment', 'investments', 'wealth', 'portfolio', 'mutual fund', 'सेबी', 'शेयर', 'शेअर', 'बाजार', 'निवेश', 'गुंतवणूक', 'पोर्टफोलियो', 'பங்குகள்', 'முதலீடு', 'పెట్టుబడి', 'షేర్లు', 'বিনিয়োগ', 'ಸೆಬಿ'],
   irdai: ['irdai', 'insurance', 'claim', 'claims', 'health', 'hospital', 'vintage', 'policy', 'आईआरडीएआई', 'इरडा', 'बीमा', 'विमा', 'क्लेम', 'दावा', 'पॉलिसी', 'कालावधी', 'மருத்துவம்', 'காப்பீடு', 'பாலிசி', 'పాలసీ', 'బీమా', 'দাবি', 'বীমা'],
-  rbi: ['rbi', 'reserve bank', 'credit', 'loan', 'loans', 'borrow', 'cibil', 'आरबीआई', 'रिजर्व बैंक', 'बैंक', 'बँक', 'लोन', 'कर्ज', 'ऋण', 'सिबिल', 'சிபில்', 'கடன்', 'రుణం', 'సిబిల్', 'ধার'],
+  rbi: ['rbi', 'reserve bank', 'credit', 'loan', 'loans', 'borrow', 'cibil', 'civil', 'cebil', 'cibal', 'sebil', 'sybil', 'आरबीआई', 'रिजर्व बैंक', 'बैंक', 'बँक', 'लोन', 'कर्ज', 'ऋण', 'सिबिल', 'सिविल', 'சிபில்', 'கடன்', 'రుణం', 'సిబిల్', 'ধার', 'emi', 'foir'],
   pfrda: ['pfrda', 'pension', 'retirement', 'nps', 'annuity', 'पीएफआरडीए', 'पेंशन', 'पेन्शन', 'निवृत्ती', 'निवृत्तीवेतन', 'एनपीएस', 'रिटायरमेंट', 'ஓய்வூதியம்', 'పెన్షన్', 'পেনশন'],
   ibbi: ['ibbi', 'insolvency', 'bankruptcy', 'liquidation', 'cirp', 'resolution', 'enterprise', 'आईबीबीआई', 'दिवालिया', 'दिवाळखोरी', 'परिसमापन', 'समाधान', 'कंपनी', 'கலைப்பு', 'దివాలా'],
   nabard: ['nabard', 'kisan', 'farmer', 'agriculture', 'agri', 'kcc', 'land', 'crop', 'harvest', 'नाबार्ड', 'किसान', 'शेतकरी', 'शेती', 'कृषी', 'जमीन', 'फसल', 'पीक', 'शेतजमीन', 'விவசாயி', 'பயிர்', 'రైతు', 'పంట', 'কৃষক', 'ফসল']
@@ -741,7 +747,7 @@ function parseAndApplySpokenInput(rawText, fromChat = false) {
   // Cross-domain fallback: if parameter belongs uniquely to another domain, switch to it!
   if (lower.includes('policy vintage') || lower.includes('vintage') || lower.includes('पॉलिसी विंटेज')) {
     targetDomain = 'irdai'; switchDomain('irdai'); domainSwitched = true;
-  } else if (lower.includes('cibil') || lower.includes('सिबिल')) {
+  } else if (lower.includes('cibil') || lower.includes('civil') || lower.includes('cebil') || lower.includes('cibal') || lower.includes('sebil') || lower.includes('सिबिल') || lower.includes('सिविल') || lower.includes('emi') || lower.includes('foir')) {
     targetDomain = 'rbi'; switchDomain('rbi'); domainSwitched = true;
   } else if (lower.includes('land') || lower.includes('acre') || lower.includes('शेती') || lower.includes('एकड़') || lower.includes('एकर')) {
     targetDomain = 'nabard'; switchDomain('nabard'); domainSwitched = true;
@@ -756,13 +762,13 @@ function parseAndApplySpokenInput(rawText, fromChat = false) {
   // Helper to extract a number right around specific keywords
   function extractNearbyNumber(str, keywords) {
     for (const kw of keywords) {
-      const p1 = new RegExp('(?:' + kw + ')[^0-9\u0900-\u097F]{0,18}?(\\d+(?:\\.\\d+)?\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|लाख|हजार)?)', 'i');
+      const p1 = new RegExp('(?:\\b' + kw + '\\b)[^0-9\u0900-\u097F]{0,30}?(\\d+(?:\\.\\d+)?\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|लाख|हजार)?)', 'i');
       const m1 = str.match(p1);
       if (m1) {
         const ext = extractSpokenNumber(m1[1]);
         if (ext) return ext;
       }
-      const p2 = new RegExp('(\\d+(?:\\.\\d+)?\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|लाख|हजार)?)[^0-9\u0900-\u097F]{0,18}?(?:' + kw + ')', 'i');
+      const p2 = new RegExp('(\\d+(?:\\.\\d+)?\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|लाख|हजार)?)[^0-9\u0900-\u097F]{0,30}?(?:\\b' + kw + '\\b)', 'i');
       const m2 = str.match(p2);
       if (m2) {
         const ext = extractSpokenNumber(m2[1]);
@@ -774,10 +780,10 @@ function parseAndApplySpokenInput(rawText, fromChat = false) {
 
   const fieldKeyKeywords = {
     // RBI
-    score: ['cibil', 'credit score', 'score', 'rating', 'सिबिल', 'क्रेडिट स्कोर', 'स्कोर', 'पत', 'சிபில்'],
-    loan_amount: ['loan', 'borrow', 'debt', 'कर्ज', 'ऋण', 'लोन', 'उधार', 'கடன்'],
-    income: ['income', 'salary', 'wage', 'pay', 'monthly', 'earn', 'earning', 'net worth', 'networth', 'wealth', 'stipend', 'आय', 'वेतन', 'पगार', 'कमाई', 'आमदनी', 'मासिक उत्पन्न', 'तनख्वाह', 'संपत्ति', 'नेटवर्थ', 'சொத்து'],
-    foir: ['foir', 'obligation', 'emi', 'हप्ता', 'देनदारी'],
+    score: ['cibil', 'civil', 'cebil', 'cibal', 'sebil', 'sybil', 'sibyl', 'credit score', 'score', 'rating', 'सिबिल', 'सिविल', 'क्रेडिट स्कोर', 'स्कोर', 'पत', 'சிபில்'],
+    loan_amount: ['loan', 'borrow', 'need a loan', 'debt', 'कर्ज', 'ऋण', 'लोन', 'उधार', 'கடன்'],
+    income: ['income', 'salary', 'wage', 'earn', 'earning', 'net worth', 'networth', 'wealth', 'stipend', 'आय', 'वेतन', 'पगार', 'कमाई', 'आमदनी', 'मासिक उत्पन्न', 'तनख्वाह', 'संपत्ति', 'नेटवर्थ', 'சொத்து'],
+    foir: ['foir', 'obligation', 'emi', 'monthly emi', 'deducted', 'deduction', 'हप्ता', 'देनदारी', 'हफ्ता', 'ईएमआई'],
     delinquency: ['delinquency', 'dpd', 'default', 'delay', 'late', 'डिफ़ॉल्ट', 'देरी', 'थकीत', 'उशीर'],
     // IRDAI
     tenure: ['tenure', 'vintage', 'policy vintage', 'policy age', 'year', 'years', 'वर्ष', 'साल', 'वर्षे', 'कालावधी', 'मुदत', 'காலம்'],
@@ -810,9 +816,24 @@ function parseAndApplySpokenInput(rawText, fromChat = false) {
 
       const ext = extractNearbyNumber(lower, keywords);
       if (ext) {
+        // Prevent deduction phrases like "23212 as monthly emi deducted from salary" from binding to income
+        if (f.key === 'income') {
+          const checkP = new RegExp('(\\d+(?:\\.\\d+)?)[^0-9\u0900-\u097F]{0,35}?(?:\\b(?:' + keywords.join('|') + ')\\b)', 'i');
+          const mCheck = lower.match(checkP);
+          if (mCheck && /(?:emi|deduct|dedcut|loan|debt|हप्ता|ईएमआई)/i.test(mCheck[0])) {
+            continue;
+          }
+        }
         let val = ext.num;
         if (f.key === 'ev_amount' && ext.rawUnit === 'crore') {
           val = ext.rawNum;
+        }
+        if (f.key === 'score' && val >= 30 && val <= 90) {
+          val = val * 10;
+        }
+        if (f.key === 'foir' && val > 100) {
+          const inc = state.income || 50000;
+          val = Math.round((val / inc) * 100);
         }
         if (f.min !== undefined && f.max !== undefined) {
           val = Math.max(f.min, Math.min(f.max, val));
@@ -839,6 +860,13 @@ function parseAndApplySpokenInput(rawText, fromChat = false) {
           let val = extractedSingle.num;
           if (f.key === 'ev_amount' && extractedSingle.rawUnit === 'crore') {
             val = extractedSingle.rawNum;
+          }
+          if (f.key === 'score' && val >= 30 && val <= 90) {
+            val = val * 10;
+          }
+          if (f.key === 'foir' && val > 100) {
+            const inc = state.income || 50000;
+            val = Math.round((val / inc) * 100);
           }
           if (f.min !== undefined && f.max !== undefined) {
             val = Math.max(f.min, Math.min(f.max, val));
@@ -1351,24 +1379,25 @@ async function renderCert() {
     const driverLabel = isPos ? 'Positive Driver' : 'Risk Factor';
 
     return `
-      <div class="factor-card ${cls}">
-        <div class="factor-card-header">
-          <div class="factor-info">
-            <span class="factor-icon">${r.icon}</span>
-            <span class="factor-name">${r.name}</span>
-            <span class="factor-driver-badge ${cls}">${driverLabel}</span>
-          </div>
-          <div class="factor-val-badge ${cls}">
-            <span class="factor-arrow">${arrow}</span>
-            <span class="factor-num">${formattedVal}</span>
+      <div class="factor-row ${cls}" title="${r.name}: ${formattedVal} (${driverLabel})">
+        <div class="factor-row-left">
+          <span class="factor-row-icon">${r.icon}</span>
+          <span class="factor-row-name">${r.name}</span>
+        </div>
+        <div class="factor-row-mid">
+          <div class="factor-row-track">
+            <div class="factor-row-center"></div>
+            ${isPos 
+              ? `<div class="factor-row-fill pos" style="left: 50%; width: ${pct}%;"></div>`
+              : `<div class="factor-row-fill neg" style="right: 50%; width: ${pct}%;"></div>`
+            }
           </div>
         </div>
-        <div class="factor-bar-track" title="${r.name}: ${formattedVal} (${driverLabel})">
-          <div class="factor-center-line"></div>
-          ${isPos 
-            ? `<div class="factor-fill pos" style="left: 50%; width: ${pct}%;"></div>`
-            : `<div class="factor-fill neg" style="right: 50%; width: ${pct}%;"></div>`
-          }
+        <div class="factor-row-right">
+          <div class="factor-row-val ${cls}">
+            <span>${arrow}</span>
+            <span>${formattedVal}</span>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -1494,7 +1523,19 @@ async function renderCert() {
       </div>
     </div>
 
-    <div class="cert-sentence" style="font-size:13px; font-weight:500; line-height:1.65; background:#F8FAFC; padding:14px; border-radius:10px; border:1px solid #E2E8F0; white-space:pre-wrap; margin-top:16px;">${sentence}</div>
+    <details class="audit-summary-details" id="audit-summary-details">
+      <summary class="audit-summary-summary">
+        <div class="audit-summary-summary-left">
+          <span style="font-size:13px;">📋</span>
+          <span>Regulatory Audit & Remediation Findings</span>
+          <span class="audit-summary-badge">${DOMAINS[currentDomain].name}</span>
+        </div>
+        <span class="audit-summary-toggle">View Details ▾</span>
+      </summary>
+      <div class="audit-summary-content">
+        <div class="cert-sentence">${sentence}</div>
+      </div>
+    </details>
 
     <div class="cert-footer">
       <div class="citation">${certCitation}</div>

@@ -393,21 +393,7 @@ select.field-select {
 .cert-wrap {
   position: sticky;
   top: 20px;
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
   border-radius: var(--radius-lg);
-  scrollbar-width: thin;
-  scrollbar-color: #CBD5E1 transparent;
-}
-.cert-wrap::-webkit-scrollbar {
-  width: 6px;
-}
-.cert-wrap::-webkit-scrollbar-track {
-  background: transparent;
-}
-.cert-wrap::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 999px;
 }
 
 .cert {
@@ -689,104 +675,68 @@ select.field-select {
 .factors-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
-.factor-card {
-  background: #FFFFFF;
+/* Compact Sleek Horizontal Divergent Attribution Rows */
+.factor-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  background: #F8FAFC;
   border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: 9px 12px;
+  border-radius: 8px;
   transition: all 0.2s ease;
   position: relative;
 }
-.factor-card:hover {
+.factor-row:hover {
+  background: #FFFFFF;
   border-color: #CBD5E1;
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
-  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
 }
-.factor-card.pos {
-  border-left: 3.5px solid #10B981;
+.factor-row.pos {
+  border-left: 3px solid #10B981;
 }
-.factor-card.neg {
-  border-left: 3.5px solid #EF4444;
+.factor-row.neg {
+  border-left: 3px solid #EF4444;
 }
 
-.factor-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.factor-info {
+.factor-row-left {
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-width: 0;
+  gap: 6px;
+  width: 140px;
+  min-width: 140px;
 }
-.factor-icon {
-  font-size: 14px;
+.factor-row-icon {
+  font-size: 13px;
   line-height: 1;
   flex-shrink: 0;
 }
-.factor-name {
-  font-size: 12.5px;
+.factor-row-name {
+  font-size: 11.5px;
   font-weight: 700;
   color: #1E293B;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.factor-driver-badge {
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 1px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-.factor-driver-badge.pos {
-  background: #ECFDF5;
-  color: #065F46;
-}
-.factor-driver-badge.neg {
-  background: #FEF2F2;
-  color: #991B1B;
-}
 
-.factor-val-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11.5px;
-  font-weight: 700;
-  flex-shrink: 0;
+.factor-row-mid {
+  flex: 1;
+  position: relative;
+  min-width: 100px;
 }
-.factor-val-badge.pos {
-  color: #047857;
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
-}
-.factor-val-badge.neg {
-  color: #B91C1C;
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
-}
-
-.factor-bar-track {
-  height: 9px;
-  background: #F1F5F9;
+.factor-row-track {
+  height: 8px;
+  background: #E2E8F0;
   border-radius: 999px;
   position: relative;
   overflow: hidden;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
 }
-.factor-center-line {
+.factor-row-center {
   position: absolute;
   left: 50%;
   top: 0;
@@ -795,28 +745,55 @@ select.field-select {
   background: #94A3B8;
   transform: translateX(-50%);
   z-index: 2;
-  opacity: 0.8;
+  opacity: 0.85;
 }
-
-.factor-fill {
+.factor-row-fill {
   position: absolute;
   top: 0;
   bottom: 0;
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.factor-fill.pos {
+.factor-row-fill.pos {
   background: linear-gradient(90deg, #10B981 0%, #059669 100%);
   border-radius: 0 999px 999px 0;
-  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
 }
-.factor-fill.neg {
+.factor-row-fill.neg {
   background: linear-gradient(270deg, #EF4444 0%, #DC2626 100%);
   border-radius: 999px 0 0 999px;
-  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.25);
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
+}
+
+.factor-row-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 66px;
+  min-width: 66px;
+}
+.factor-row-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.factor-row-val.pos {
+  color: #047857;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+}
+.factor-row-val.neg {
+  color: #B91C1C;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
 }
 
 /* Gentle pulse on updated factors */
-.factor-card.bar-highlight-pulse {
+.factor-row.bar-highlight-pulse, .factor-card.bar-highlight-pulse {
   animation: factorCardPulse 1.2s ease-out;
 }
 @keyframes factorCardPulse {
@@ -830,10 +807,74 @@ select.field-select {
   }
 }
 
-
+/* Collapsible Compact Audit Findings Accordion */
+.audit-summary-details {
+  margin-top: 14px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.audit-summary-details[open] {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+.audit-summary-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #1E293B;
+  background: #F1F5F9;
+  list-style: none;
+  transition: background 0.15s ease;
+}
+.audit-summary-summary::-webkit-details-marker {
+  display: none;
+}
+.audit-summary-summary:hover {
+  background: #E2E8F0;
+}
+.audit-summary-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.audit-summary-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #E2E8F0;
+  color: #475569;
+}
+.audit-summary-toggle {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563EB;
+}
+.audit-summary-details[open] .audit-summary-toggle {
+  color: #64748B;
+}
+.audit-summary-content {
+  padding: 12px 14px;
+  border-top: 1px solid #E2E8F0;
+}
 .cert-sentence {
-  margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--panel-border);
-  font-size: 13.5px; color: var(--primary-navy); font-weight: 500; line-height: 1.65; white-space: pre-wrap;
+  font-size: 12px;
+  color: #334155;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin: 0;
 }
 
 .cert-footer {

@@ -53,7 +53,7 @@ const DOMAINS = {
         key: 'loan_amount',
         label: 'Requested Loan Amount (₹)',
         flabel: 'Requested Loan Amount',
-        icon: '💵', min: 50000, max: 2500000, step: 25000, base: 500000, coef: -0.0000008,
+        icon: '💵', min: 10000, max: 2500000, step: 10000, base: 500000, coef: -0.0000008,
         fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
         help: 'Principal loan quantum requested by the applicant. Higher loan amounts elevate lender exposure risk, requiring stronger income and credit backing.'
       },
