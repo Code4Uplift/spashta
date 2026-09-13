@@ -491,7 +491,16 @@ def create_certificate(request: CertificateCreateRequest, db: Session = Depends(
 
         return CertificatePublic.model_validate(record)
     except Exception as db_err:
-        print(f"Warning: Could not persist to database ({db_err}). Returning ephemeral certificate.")
+        db.rollback()
+        # Handle concurrent race condition: check if another worker just committed it
+        try:
+            existing = db.query(CertificateRecord).filter(CertificateRecord.cert_id == cert_id).first()
+            if existing:
+                return CertificatePublic.model_validate(existing)
+        except Exception:
+            pass
+
+        print(f"Notice: Could not persist to database ({db_err}). Returning ephemeral certificate.")
         return CertificatePublic(
             cert_id=cert_id,
             domain=request.domain,

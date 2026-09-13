@@ -1206,6 +1206,10 @@ async function buildFields() {
       range.addEventListener('input', () => {
         state[f.key] = parseFloat(range.value);
         valEl.textContent = f.fmt ? f.fmt(state[f.key]) : state[f.key];
+        debouncedRenderCert(120);
+      });
+      range.addEventListener('change', () => {
+        if (renderCertDebounceTimer) clearTimeout(renderCertDebounceTimer);
         renderCert();
       });
     }
@@ -1454,6 +1458,14 @@ function renderQrCodeElement(containerId, text) {
       <rect x="18" y="18" width="3" height="3"/>
     </svg>
   `;
+}
+
+let renderCertDebounceTimer = null;
+function debouncedRenderCert(delay = 120) {
+  if (renderCertDebounceTimer) clearTimeout(renderCertDebounceTimer);
+  renderCertDebounceTimer = setTimeout(() => {
+    renderCert();
+  }, delay);
 }
 
 async function renderCert() {
