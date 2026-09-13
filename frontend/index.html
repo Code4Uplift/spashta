@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Oriya:wght@400;500;600;700&family=Noto+Sans+Gurmukhi:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=2.6.3">
+<link rel="stylesheet" href="css/styles.css?v=2.6.4">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -127,10 +127,11 @@
 
           <!-- Quick Suggestion Chips -->
           <div class="chat-suggestions" id="chat-suggestions">
-            <button type="button" class="chat-chip" data-query="My CIBIL is 780, salary 50000 and I need a loan of 2 lakhs">💬 CIBIL 780, 50k salary, 2L loan</button>
-            <button type="button" class="chat-chip" data-query="Switch to SEBI with 10 lakh net worth and high risk tolerance">📈 SEBI: 10L Net Worth</button>
-            <button type="button" class="chat-chip" data-query="Policy vintage 5 years and claim 2 lakh in IRDAI">🛡️ IRDAI: 5 Yrs Vintage, 2L Claim</button>
-            <button type="button" class="chat-chip" data-query="Calculate Aumann-Shapley explanations">⚡ Compute Explanations</button>
+            <button type="button" class="chat-chip" data-query="civil 90" data-source="voice">🎙️ VN: "civil 90"</button>
+            <button type="button" class="chat-chip" data-query="My CIBIL is 780, salary 50000 and I need a loan of 2 lakhs" data-source="voice">🎙️ VN: 780 score, 50k, 2L loan</button>
+            <button type="button" class="chat-chip" data-query="Switch to SEBI with 10 lakh net worth and high risk tolerance">📈 SEBI: 10L Net</button>
+            <button type="button" class="chat-chip" data-query="Policy vintage 5 years and claim 2 lakh in IRDAI">🛡️ IRDAI: 5 Yrs, 2L</button>
+            <button type="button" class="chat-chip" data-query="Calculate Aumann-Shapley explanations">⚡ Compute</button>
           </div>
 
           <!-- Chat Messages Container -->
@@ -148,7 +149,7 @@
             <button type="button" class="chat-mic-btn" id="chat-mic-btn" title="Click to speak (Voice Note)">
               <span class="chat-mic-icon">🎙️</span>
             </button>
-            <input type="text" id="chat-input" class="chat-input-field" placeholder="Type your profile or query (e.g. 'loan 2 lakh, cibil 780')..." autocomplete="off" />
+            <input type="text" id="chat-input" class="chat-input-field" placeholder="Type your profile or query (e.g. 'loan 2 lakh, civil 90')..." autocomplete="off" />
             <button type="submit" class="chat-send-btn" id="chat-send-btn" title="Send message">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
             </button>
@@ -170,11 +171,11 @@
   </div>
 </footer>
 
-<script src="js/config.js?v=2.6.3"></script>
-<script src="js/translate-service.js?v=2.6.3"></script>
-<script src="js/shapley-engine.js?v=2.6.3"></script>
-<script src="js/domain-data.js?v=2.6.3"></script>
-<script src="js/app.js?v=2.6.3"></script>
+<script src="js/config.js?v=2.6.4"></script>
+<script src="js/translate-service.js?v=2.6.4"></script>
+<script src="js/shapley-engine.js?v=2.6.4"></script>
+<script src="js/domain-data.js?v=2.6.4"></script>
+<script src="js/app.js?v=2.6.4"></script>
 
 </body>
 </html>

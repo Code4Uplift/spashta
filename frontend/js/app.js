@@ -193,90 +193,112 @@ async function verifyCertificate(certId) {
 // -----------------------------------------------------------------------------
 // Voice-to-Text Speech Recognition (STT)
 // -----------------------------------------------------------------------------
-function initSpeechRecognition() {
-  const dictateBtn = document.getElementById('btn-dictate');
-  const banner = document.getElementById('voice-status-banner');
-  const statusText = document.getElementById('voice-status-text');
+let pendingVoiceUtterance = '';
+let voiceProcessed = false;
 
+function initSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    if (dictateBtn) {
-      dictateBtn.title = 'Speech Recognition not supported in this browser';
-      dictateBtn.onclick = () => alert('Speech-to-Text requires a browser with Web Speech API support (Google Chrome, Microsoft Edge, Safari, or Chromium on Android).');
-    }
+    console.warn('SpeechRecognition API not available in this browser');
     return;
   }
 
-  speechRecognizer = new SpeechRecognition();
-  speechRecognizer.continuous = false;
-  speechRecognizer.interimResults = true;
+  try {
+    speechRecognizer = new SpeechRecognition();
+    speechRecognizer.continuous = false;
+    speechRecognizer.interimResults = true;
+    speechRecognizer.maxAlternatives = 1;
 
-  if (dictateBtn) {
-    dictateBtn.addEventListener('click', () => {
-      if (isDictating) {
+    speechRecognizer.onstart = () => {
+      isDictating = true;
+      pendingVoiceUtterance = '';
+      voiceProcessed = false;
+      const chatMicBtn = document.getElementById('chat-mic-btn');
+      if (chatMicBtn) chatMicBtn.classList.add('recording');
+      const chatInput = document.getElementById('chat-input');
+      if (chatInput) {
+        chatInput.placeholder = "🔴 Listening to Voice Note... Speak now (or tap mic to stop)";
+        chatInput.value = '';
+      }
+      const banner = document.getElementById('voice-status-banner');
+      const statusText = document.getElementById('voice-status-text');
+      if (banner) {
+        banner.style.display = 'flex';
+        banner.classList.remove('success-flash');
+      }
+      if (statusText) statusText.textContent = 'Listening to voice note... Speak parameters';
+    };
+
+    speechRecognizer.onresult = (event) => {
+      let interim = '';
+      let final = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+
+      const currentText = (final || interim).trim();
+      if (currentText) {
+        pendingVoiceUtterance = (final && final.trim()) ? final.trim() : currentText;
+        const statusText = document.getElementById('voice-status-text');
+        if (statusText) statusText.textContent = `🗣️ "${pendingVoiceUtterance}"`;
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) chatInput.value = pendingVoiceUtterance;
+      }
+
+      // If browser provided final speech token
+      if (final && final.trim()) {
+        const fullUtterance = final.trim();
+        voiceProcessed = true;
+        pendingVoiceUtterance = '';
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) chatInput.value = '';
         stopVoiceDictate();
-      } else {
-        startVoiceDictate();
-      }
-    });
-  }
-
-  speechRecognizer.onstart = () => {
-    isDictating = true;
-    if (dictateBtn) dictateBtn.classList.add('listening');
-    const textSpan = document.getElementById('btn-dictate-text');
-    if (textSpan) textSpan.textContent = 'Stop Listening';
-    const chatMicBtn = document.getElementById('chat-mic-btn');
-    if (chatMicBtn) chatMicBtn.classList.add('recording');
-    if (banner) {
-      banner.style.display = 'flex';
-      banner.classList.remove('success-flash');
-    }
-    if (statusText) statusText.textContent = 'Listening... Speak parameter or domain';
-  };
-
-  speechRecognizer.onresult = (event) => {
-    let interim = '';
-    let final = '';
-
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
-      if (event.results[i].isFinal) {
-        final += event.results[i][0].transcript;
-      } else {
-        interim += event.results[i][0].transcript;
-      }
-    }
-
-    const currentText = (final || interim).trim();
-    if (currentText && statusText) {
-      statusText.textContent = `🗣️ "${currentText}"`;
-    }
-    const chatInput = document.getElementById('chat-input');
-    if (currentText && chatInput && isDictating) {
-      chatInput.value = currentText;
-    }
-
-    if (event.results[0].isFinal || final) {
-      const fullUtterance = (final || currentText).trim();
-      if (fullUtterance) {
         processSpokenUtterance(fullUtterance, 'voice');
       }
-    }
-  };
+    };
 
-  speechRecognizer.onerror = (e) => {
-    console.warn('Speech recognition error:', e.error);
-    stopVoiceDictate();
-  };
+    speechRecognizer.onerror = (e) => {
+      console.warn('Speech recognition error:', e.error);
+      const err = e.error;
+      if (err === 'not-allowed' || err === 'permission-denied') {
+        showVoiceFeedbackToast('🎙️ Mic permission denied. Please allow microphone in your browser address bar.');
+      } else if (err === 'network' || err === 'service-not-allowed') {
+        showVoiceFeedbackToast('🎙️ Speech service blocked by browser. (Brave disables Google STT by default). Try Chrome/Edge or click a VN chip below!');
+      } else if (err === 'no-speech') {
+        showVoiceFeedbackToast('🎙️ No speech detected. Click mic and speak your command.');
+      }
+      stopVoiceDictate();
+    };
 
-  speechRecognizer.onend = () => {
-    stopVoiceDictate();
-  };
+    speechRecognizer.onend = () => {
+      if (!voiceProcessed && pendingVoiceUtterance && pendingVoiceUtterance.trim()) {
+        voiceProcessed = true;
+        const utterance = pendingVoiceUtterance.trim();
+        pendingVoiceUtterance = '';
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) chatInput.value = '';
+        processSpokenUtterance(utterance, 'voice');
+      }
+      stopVoiceDictate();
+    };
+  } catch (err) {
+    console.warn('Failed to initialize speech recognition:', err);
+  }
 }
 
 function startVoiceDictate() {
-  if (!speechRecognizer) return;
+  if (!speechRecognizer) {
+    showVoiceFeedbackToast('🎙️ Voice-to-Text requires Chrome, Edge, or Safari with Web Speech API. You can also click any VN chip below!');
+    return;
+  }
   speechRecognizer.lang = LANG_BY_CODE[currentLang]?.speechLocale || 'en-IN';
+  pendingVoiceUtterance = '';
+  voiceProcessed = false;
   try {
     speechRecognizer.start();
   } catch (e) {
@@ -285,26 +307,33 @@ function startVoiceDictate() {
 }
 
 function stopVoiceDictate() {
+  if (isDictating && !voiceProcessed && pendingVoiceUtterance && pendingVoiceUtterance.trim()) {
+    voiceProcessed = true;
+    const utterance = pendingVoiceUtterance.trim();
+    pendingVoiceUtterance = '';
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) chatInput.value = '';
+    processSpokenUtterance(utterance, 'voice');
+  }
   isDictating = false;
-  const dictateBtn = document.getElementById('btn-dictate');
-  const textSpan = document.getElementById('btn-dictate-text');
-  const banner = document.getElementById('voice-status-banner');
+  pendingVoiceUtterance = '';
+  const chatInput = document.getElementById('chat-input');
+  if (chatInput) {
+    chatInput.placeholder = "Type your profile or query (e.g. 'loan 2 lakh, civil 90')...";
+  }
   const chatMicBtn = document.getElementById('chat-mic-btn');
   if (chatMicBtn) chatMicBtn.classList.remove('recording');
 
-  if (dictateBtn) {
-    dictateBtn.classList.remove('listening');
-    if (textSpan) textSpan.textContent = 'Voice Dictate';
-  }
   if (speechRecognizer) {
     try { speechRecognizer.stop(); } catch (e) {}
   }
+  const banner = document.getElementById('voice-status-banner');
   setTimeout(() => {
     if (!isDictating && banner) {
       banner.style.display = 'none';
       banner.classList.remove('success-flash');
     }
-  }, 4000);
+  }, 3000);
 }
 
 function triggerVoiceDictate() {
@@ -363,8 +392,9 @@ function initChatCopilot() {
     suggestions.addEventListener('click', (e) => {
       const chip = e.target.closest('.chat-chip');
       if (chip && chip.dataset.query) {
-        input.value = chip.dataset.query;
-        handleSend();
+        const src = chip.dataset.source || 'chat';
+        input.value = '';
+        processSpokenUtterance(chip.dataset.query, src);
       }
     });
   }
@@ -383,18 +413,23 @@ function resetChatMessages() {
   `;
 }
 
-function appendChatMessage(sender, text, pillsHtml = '') {
+function appendChatMessage(sender, text, pillsHtml = '', isVoice = false) {
   const container = document.getElementById('chat-messages');
   if (!container) return;
 
   const bubble = document.createElement('div');
   bubble.className = `chat-bubble ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`;
 
-  const avatar = sender === 'user' ? '🗣️' : '🤖';
+  const avatar = sender === 'user' ? (isVoice ? '🎙️' : '🗣️') : '🤖';
   const body = document.createElement('div');
   body.className = 'chat-bubble-body';
 
-  let html = `<p>${escapeHtml(text)}</p>`;
+  let html = '';
+  if (sender === 'user' && isVoice) {
+    html = `<div class="vn-badge"><span>🎙️ Voice Note</span><span class="vn-audio-bars"><span></span><span></span><span></span></span></div><p>${escapeHtml(text)}</p>`;
+  } else {
+    html = `<p>${escapeHtml(text)}</p>`;
+  }
   if (pillsHtml) {
     html += `<div style="margin-top: 4px;">${pillsHtml}</div>`;
   }
@@ -440,7 +475,7 @@ function removeChatThinking() {
 function highlightAttributionBars() {
   const cert = document.getElementById('cert');
   if (!cert) return;
-  const elements = cert.querySelectorAll('.factor-row, .factor-card, .verdict-hero, .visual-analytics');
+  const elements = cert.querySelectorAll('.factor, .factor-row, .factor-card, .verdict-hero, .visual-analytics');
   elements.forEach(el => {
     el.classList.remove('bar-highlight-pulse');
     void el.offsetWidth;
@@ -476,8 +511,8 @@ async function processSpokenUtterance(fullUtterance, source = 'voice') {
   lastProcessedUtterance = fullUtterance;
   lastProcessedTime = now;
 
-  // Add user bubble into chat
-  appendChatMessage('user', fullUtterance);
+  // Add user bubble into chat with voice note flag if source === 'voice'
+  appendChatMessage('user', fullUtterance, '', source === 'voice');
 
   // 1. Optimistic Local Evaluation (Instant Response in < 10ms)
   // Evaluates common commands, domain switches, and parameter updates immediately

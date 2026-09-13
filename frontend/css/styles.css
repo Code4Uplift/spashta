@@ -1315,6 +1315,36 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
   100% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
 }
 
+.vn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #DBEAFE;
+  margin-bottom: 3px;
+}
+.vn-audio-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+.vn-audio-bars span {
+  width: 2px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 1px;
+  animation: vnWave 0.8s infinite alternate;
+}
+.vn-audio-bars span:nth-child(1) { height: 5px; animation-delay: 0.1s; }
+.vn-audio-bars span:nth-child(2) { height: 9px; animation-delay: 0.25s; }
+.vn-audio-bars span:nth-child(3) { height: 6px; animation-delay: 0.4s; }
+@keyframes vnWave {
+  0% { transform: scaleY(0.4); }
+  100% { transform: scaleY(1.2); }
+}
+
 .chat-input-field {
   flex: 1;
   border: 1.5px solid #CBD5E1;
