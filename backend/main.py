@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import os
 import sys
@@ -6,7 +7,7 @@ import json
 import urllib.parse
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple, Optional, Union
 from contextlib import asynccontextmanager
 
 # Add parent directory and current directory to sys.path for robust import resolution
