@@ -353,20 +353,31 @@ def account_aggregator_webhook(payload: AccountAggregatorWebhookPayload):
 
 VOICE_PARSER_SYSTEM_PROMPT = """You are the intelligent natural language voice parser for SPASHTA, India's explainable AI underwriting engine.
 You understand spoken user commands in ANY Indian language or dialect (English, Hindi, Gujarati, Marathi, Tamil, Telugu, Bengali, Kannada, Malayalam, Urdu, Marwari, Hinglish, etc.).
+You have full reasoning and thinking capabilities. Use your internal chain of thought to translate and deeply understand what the user is expressing.
 
 Analyze the user's spoken sentence and output a single JSON object with the following fields:
-1. "domain": One of "rbi", "irdai", "sebi", "pfrda", "ibbi", "nabard". If no authority/sector is mentioned, retain the user's current domain.
-   - rbi: credit card, personal loan, CIBIL, credit score, debt, bank (कर्ज, लोन, बैंक, सिबिल)
-   - irdai: insurance, health/motor claim, policy vintage/tenure, cashless network, pre-existing disease, anomaly/fraud (बीमा, विमा, क्लेम, पॉलिसी, दावा)
+1. "domain": One of "rbi", "irdai", "sebi", "pfrda", "ibbi", "nabard". If no authority/sector is mentioned, retain the user's current active domain.
+   - rbi: credit card, personal loan, CIBIL, credit score, debt, salary, bank (कर्ज, लोन, बैंक, सिबिल, पगार, वेतन)
+   - irdai: insurance, health/motor claim, policy vintage/tenure, network cashless hospital, pre-existing disease, anomaly/fraud (बीमा, विमा, क्लेम, पॉलिसी, दावा, अस्पताल)
    - sebi: stocks, mutual funds, investments, annual net worth/income, risk tolerance, portfolio concentration, horizon (शेयर, निवेश, स्टॉक, बाजार, संपत्ति, उत्पन्न)
    - pfrda: NPS, retirement, pension, age, monthly savings/contribution, equity allocation (पेंशन, पेन्शन, निवृत्ती, उम्र, वय, एनपीएस)
    - ibbi: corporate insolvency, resolution enterprise value (₹ Cr), liquidation coverage, timeline months, recovery (दिवालिया, समाधान, परिसमापन, एंटरप्राइज)
-   - nabard: Kisan Credit Card, cultivable land (acres), harvest/crop yield, moneylender debt, irrigation, PMFBY (किसान, शेती, जमीन, फसल, पीक, एकर)
+   - nabard: Kisan Credit Card, cultivable land (acres), harvest/crop yield, moneylender debt, irrigation, PMFBY crop insurance (किसान, शेती, जमीन, फसल, पीक, एकर, सिंचन)
 
 2. "action": Optional action string or null. Allowed values: "compute", "reset", "speak", "stop_audio", "privacy".
 
 3. "parameters": Dictionary of numeric field values extracted from speech.
-   Supported keys per domain:
+   CRITICAL - MULTIPLE PARAMETER EXTRACTION:
+   Extract ALL parameters mentioned in the sentence. If the user mentions 2, 3, or more parameters (e.g. credit score 780, monthly income 50000, loan 200000), include ALL of them in the parameters dictionary:
+   {"score": 780, "income": 50000, "loan_amount": 200000}. Do NOT stop after the first parameter!
+
+   TOGGLE CONTROLS (0 or 1) - Understand negation & affirmative across all languages:
+   - irdai "network" (Hospital/Garage): "hospital is not there", "no network hospital", "गैर-नेटवर्क", "अस्पताल नहीं है", "दवाखाना नाही", "illai", "nathi" -> 0. "cashless network hospital", "नेटवर्क अस्पताल है" -> 1.
+   - irdai "pre_existing": "no pre-existing disease", "clean record", "बीमारी नहीं है", "आजार नाही" -> 0. "has pre-existing disease", "बीमारी है" -> 1.
+   - nabard "irrigation_status": "no irrigation", "rainfed", "सूखा", "पाणी नाही" -> 0. "irrigation available", "canal", "borewell", "सिंचाई है" -> 1.
+   - nabard "crop_insurance": "no crop insurance", "uninsured", "बीमा नहीं है", "विमा नाही" -> 0. "PMFBY insured", "फसल बीमा है" -> 1.
+
+   Supported numeric keys per domain:
    - rbi: score (300-900), loan_amount (₹), income (monthly ₹), foir (% 10-90), delinquency (0, 1, 2), emp_status (2, 1, 0.5, -0.5)
    - irdai: tenure (policy vintage in years, 0-15), amount (claim ₹), network (1 or 0), pre_existing (1 or 0), fraud_score (% 0-100)
    - sebi: risk_appetite (10-100), income (annual net worth ₹), concentration (% 5-90), horizon (years 1-20), risk_category (1, 3, 5)
@@ -374,12 +385,81 @@ Analyze the user's spoken sentence and output a single JSON object with the foll
    - ibbi: ev_amount (resolution enterprise value in ₹ Crores directly, e.g. 500 cr -> 500), liquidation_coverage (% 50-200), timeline_months (3-36), op_creditor_recovery (% 10-100), promoter_track (3, 1, -1)
    - nabard: land_holding (cultivable land in Acres, e.g. 10), crop_value (annual harvest yield ₹), informal_debt (% 0-80), irrigation_status (1 or 0), crop_insurance (1 or 0)
    * Note on Indian units: 1 lakh = 100,000, 1 crore = 10,000,000, 1 thousand/hazar = 1,000.
+   * Direct numbers: "income 700" -> 700.
 
-4. "feedback": A concise, natural confirmation message in English explaining what was done.
+4. "feedback": A concise, natural confirmation message in English summarizing what was done.
 
-Respond ONLY with valid JSON. Do not include markdown tags, codeblocks, or extra explanation.
+Respond ONLY with valid JSON. Do not include markdown tags, codeblocks, or extra text.
 Example:
-{"domain": "sebi", "action": null, "parameters": {"income": 500000}, "feedback": "Switched to SEBI and set Annual Net Worth to ₹5,00,000"}"""
+{"domain": "rbi", "action": null, "parameters": {"score": 780, "income": 50000, "loan_amount": 200000}, "feedback": "Set Credit Score to 780, Monthly Income to ₹50,000, and Loan Amount to ₹2,00,000"}"""
+
+
+def _parse_multipliers_in_text(text: str) -> str:
+    word_map = [
+        ("zero", 0), ("shunya", 0), ("शून्य", 0),
+        ("one", 1), ("ek", 1), ("एक", 1),
+        ("two", 2), ("do", 2), ("don", 2), ("दो", 2), ("दोन", 2),
+        ("three", 3), ("teen", 3), ("तीन", 3),
+        ("four", 4), ("char", 4), ("चार", 4),
+        ("five", 5), ("panch", 5), ("paanch", 5), ("paach", 5), ("पांच", 5), ("पाँच", 5), ("पाच", 5),
+        ("six", 6), ("chhah", 6), ("saha", 6), ("छह", 6), ("सहा", 6),
+        ("seven", 7), ("saat", 7), ("सात", 7),
+        ("eight", 8), ("aath", 8), ("आठ", 8),
+        ("nine", 9), ("nau", 9), ("नौ", 9), ("नऊ", 9),
+        ("ten", 10), ("das", 10), ("daha", 10), ("दस", 10), ("दहा", 10),
+        ("fifteen", 15), ("pandrah", 15), ("पंद्रह", 15), ("पंधरा", 15),
+        ("twenty", 20), ("bees", 20), ("बीस", 20), ("वीस", 20),
+        ("twenty five", 25), ("pachis", 25), ("पच्चीस", 25), ("पंचवीस", 25),
+        ("thirty", 30), ("tees", 30), ("तीस", 30),
+        ("forty", 40), ("chalis", 40), ("चालीस", 40), ("चाळीस", 40),
+        ("fifty", 50), ("pachas", 50), ("पचास", 50), ("पन्नास", 50),
+        ("seventy", 70), ("sattar", 70), ("सत्तर", 70),
+        ("eighty", 80), ("assi", 80), ("अस्सी", 80),
+        ("ninety", 90), ("nabbe", 90), ("नब्बे", 90),
+        ("hundred", 100), ("sau", 100), ("shambhar", 100), ("सौ", 100), ("शंभर", 100)
+    ]
+    norm = text
+    for w, v in word_map:
+        norm = re.sub(r"(^|[^a-zA-Z0-9\u0900-\u097F])" + re.escape(w) + r"(?=$|[^a-zA-Z0-9\u0900-\u097F])", r"\g<1>" + str(v), norm, flags=re.IGNORECASE)
+    return norm
+
+
+def _extract_number_with_unit(segment: str) -> float | None:
+    norm = _parse_multipliers_in_text(segment)
+    crore_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:crore|crores|cr|करोड़|कोटी)", norm, re.IGNORECASE)
+    if crore_m:
+        return float(crore_m.group(1)) * 10000000
+    lakh_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs|लाख|लाखा|লাখ)", norm, re.IGNORECASE)
+    if lakh_m:
+        return float(lakh_m.group(1)) * 100000
+    thousand_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:k|thousand|thousands|हजार|हज़ार)", norm, re.IGNORECASE)
+    if thousand_m:
+        return float(thousand_m.group(1)) * 1000
+    raw_m = re.search(r"(\d+(?:\.\d+)?)", norm)
+    if raw_m:
+        return float(raw_m.group(1))
+    return None
+
+
+def _extract_param_value(text: str, keywords: list[str]) -> float | None:
+    for kw in keywords:
+        # Pattern 1: Keyword followed by number/multiplier (e.g. "income 50000", "loan of 2 lakhs", "income is 700")
+        p1 = rf"\b{re.escape(kw)}\b(?:\s+(?:is|was|hai|of|around|to|=|at))?\s*(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)"
+        m1 = re.search(p1, text, re.IGNORECASE)
+        if m1:
+            val = _extract_number_with_unit(m1.group(1))
+            if val is not None:
+                return val
+
+        # Pattern 2: Number/multiplier followed by keyword (e.g. "5 lakh rupees income", "50000 salary", "2 lakhs loan")
+        p2 = rf"(\d+(?:\.\d+)?(?:\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)\s*(?:rupees|rs|inr|रुपये|per month|प्रति माह|दरमहा)?\s*\b{re.escape(kw)}\b"
+        m2 = re.search(p2, text, re.IGNORECASE)
+        if m2:
+            val = _extract_number_with_unit(m2.group(1))
+            if val is not None:
+                return val
+
+    return None
 
 
 def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> VoiceIntentResponse:
@@ -413,136 +493,122 @@ def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> 
         detected_domain = "nabard"
 
     target_domain = detected_domain or current_domain
-
-    word_map = [
-        ("zero", 0), ("shunya", 0), ("शून्य", 0),
-        ("one", 1), ("ek", 1), ("एक", 1),
-        ("two", 2), ("do", 2), ("don", 2), ("दो", 2), ("दोन", 2),
-        ("three", 3), ("teen", 3), ("तीन", 3),
-        ("four", 4), ("char", 4), ("चार", 4),
-        ("five", 5), ("panch", 5), ("paanch", 5), ("paach", 5), ("पांच", 5), ("पाँच", 5), ("पाच", 5),
-        ("six", 6), ("chhah", 6), ("saha", 6), ("छह", 6), ("सहा", 6),
-        ("seven", 7), ("saat", 7), ("सात", 7),
-        ("eight", 8), ("aath", 8), ("आठ", 8),
-        ("nine", 9), ("nau", 9), ("नौ", 9), ("नऊ", 9),
-        ("ten", 10), ("das", 10), ("daha", 10), ("दस", 10), ("दहा", 10),
-        ("fifteen", 15), ("pandrah", 15), ("पंद्रह", 15), ("पंधरा", 15),
-        ("twenty", 20), ("bees", 20), ("बीस", 20), ("वीस", 20),
-        ("twenty five", 25), ("pachis", 25), ("पच्चीस", 25), ("पंचवीस", 25),
-        ("thirty", 30), ("tees", 30), ("तीस", 30),
-        ("forty", 40), ("chalis", 40), ("चालीस", 40), ("चाळीस", 40),
-        ("fifty", 50), ("pachas", 50), ("पचास", 50), ("पन्नास", 50),
-        ("seventy", 70), ("sattar", 70), ("सत्तर", 70),
-        ("eighty", 80), ("assi", 80), ("अस्सी", 80),
-        ("ninety", 90), ("nabbe", 90), ("नब्बे", 90),
-        ("hundred", 100), ("sau", 100), ("shambhar", 100), ("सौ", 100), ("शंभर", 100)
-    ]
-    norm_text = lower
-    for w, v in word_map:
-        norm_text = re.sub(r"(^|[^a-zA-Z0-9\u0900-\u097F])" + re.escape(w) + r"(?=$|[^a-zA-Z0-9\u0900-\u097F])", r"\g<1>" + str(v), norm_text, flags=re.IGNORECASE)
-
-    extracted_num = None
-    raw_num = None
-    raw_unit = None
-
-    crore_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:crore|crores|cr|करोड़|कोटी)", norm_text, re.IGNORECASE)
-    lakh_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs|लाख|লাখ)", norm_text, re.IGNORECASE)
-    thousand_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:k|thousand|thousands|हजार|हज़ार)", norm_text, re.IGNORECASE)
-    raw_m = re.search(r"(\d+(?:\.\d+)?)", norm_text)
-
-    if crore_m:
-        raw_num = float(crore_m.group(1))
-        extracted_num = raw_num * 10000000
-        raw_unit = "crore"
-    elif lakh_m:
-        raw_num = float(lakh_m.group(1))
-        extracted_num = raw_num * 100000
-        raw_unit = "lakh"
-    elif thousand_m:
-        raw_num = float(thousand_m.group(1))
-        extracted_num = raw_num * 1000
-        raw_unit = "thousand"
-    elif raw_m:
-        raw_num = float(raw_m.group(1))
-        extracted_num = raw_num
-
     params = {}
-    matched_key = None
 
-    if target_domain == "sebi":
-        if any(k in lower for k in ["income", "net worth", "networth", "wealth", "annual", "संपत्ति", "संपत्ती", "नेटवर्थ", "आय", "उत्पन्न", "कमाई"]):
-            matched_key = "income"
-        elif any(k in lower for k in ["risk", "tolerance", "appetite", "जोखिम", "जोखीम", "रिस्क"]):
-            matched_key = "risk_appetite"
-        elif any(k in lower for k in ["horizon", "tenure", "holding", "कालावधी", "मुदत"]):
-            matched_key = "horizon"
-    elif target_domain == "irdai":
-        if any(k in lower for k in ["tenure", "vintage", "policy vintage", "year", "years", "वर्ष", "साल", "वर्षे", "कालावधी"]):
-            matched_key = "tenure"
-        elif any(k in lower for k in ["claim", "amount", "bill", "दावा", "दाव्याची", "क्लेम", "रक्कम"]):
-            matched_key = "amount"
-        elif any(k in lower for k in ["fraud", "anomaly", "suspicion", "धोखाधड़ी", "फ्रॉड", "जोखिम"]):
-            matched_key = "fraud_score"
-    elif target_domain == "rbi":
-        if any(k in lower for k in ["cibil", "score", "rating", "सिबिल", "स्कोर", "पत"]):
-            matched_key = "score"
-        elif any(k in lower for k in ["loan", "borrow", "debt", "कर्ज", "ऋण", "लोन"]):
-            matched_key = "loan_amount"
-        elif any(k in lower for k in ["income", "salary", "wage", "pay", "monthly", "आय", "वेतन", "पगार", "कमाई", "आमदनी"]):
-            matched_key = "income"
-    elif target_domain == "pfrda":
-        if any(k in lower for k in ["age", "years old", "वय", "उम्र", "आयु"]):
-            matched_key = "age"
-        elif any(k in lower for k in ["contribution", "nps", "savings", "अंशदान", "बचत"]):
-            matched_key = "monthly_contribution"
-    elif target_domain == "ibbi":
-        if any(k in lower for k in ["enterprise", "resolution value", "ev", "व्हॅल्यू", "मूल्य"]):
-            matched_key = "ev_amount"
-        elif any(k in lower for k in ["timeline", "month", "months", "महिने", "महीने"]):
-            matched_key = "timeline_months"
-    elif target_domain == "nabard":
-        if any(k in lower for k in ["land", "acre", "acres", "farmland", "जमीन", "शेती", "एकर", "एकड़"]):
-            matched_key = "land_holding"
-        elif any(k in lower for k in ["crop", "yield", "harvest", "produce", "उत्पन्न", "पीक", "फसल"]):
-            matched_key = "crop_value"
+    # 1. Check Toggle states (affirmative vs negative)
+    # IRDAI Network Hospital
+    if any(w in lower for w in ["hospital", "network hospital", "cashless", "अस्पताल", "रुग्णालय", "दवाखाना"]):
+        target_domain = "irdai"
+        if any(neg in lower for neg in ["not there", "no hospital", "no network", "not available", "non-network", "non network", "नहीं है", "नाही", "नसेल", "illai", "nathi", "without", "बिना"]):
+            params["network"] = 0.0
+        else:
+            params["network"] = 1.0
 
-    # Cross domain checks if not found
-    if not matched_key:
-        if any(k in lower for k in ["policy vintage", "vintage", "पॉलिसी विंटेज"]):
-            target_domain = "irdai"
-            matched_key = "tenure"
-        elif any(k in lower for k in ["cibil", "सिबिल"]):
-            target_domain = "rbi"
-            matched_key = "score"
-        elif any(k in lower for k in ["land", "acre", "acres", "जमीन", "शेती", "एकड़", "एकर"]):
-            target_domain = "nabard"
-            matched_key = "land_holding"
-        elif any(k in lower for k in ["enterprise", "resolution value", "ev amount", "एंटरप्राइज"]):
-            target_domain = "ibbi"
-            matched_key = "ev_amount"
-        elif any(k in lower for k in ["age", "उम्र", "वय"]):
-            target_domain = "pfrda"
-            matched_key = "age"
+    # IRDAI Pre-existing disease
+    if any(w in lower for w in ["pre-existing", "pre existing", "ped", "disease", "illness", "बीमारी", "आजार", "रोग"]):
+        target_domain = "irdai"
+        if any(neg in lower for neg in ["no disease", "no pre-existing", "not have", "नहीं है", "नाही", "clean", "without", "बिना"]):
+            params["pre_existing"] = 0.0
+        else:
+            params["pre_existing"] = 1.0
 
-    if matched_key and extracted_num is not None:
-        val = raw_num if (target_domain == "ibbi" and matched_key == "ev_amount" and raw_unit == "crore") else extracted_num
-        domain_cfg = DOMAINS.get(target_domain, {})
-        for f in domain_cfg.get("fields", []):
-            if f["key"] == matched_key:
-                min_v = f.get("min", float("-inf"))
-                max_v = f.get("max", float("inf"))
-                val = max(min_v, min(max_v, val))
-                params[matched_key] = float(val)
-                break
+    # NABARD Irrigation Status
+    if any(w in lower for w in ["irrigation", "सिंचाई", "सिंचन", "borewell", "canal"]):
+        target_domain = "nabard"
+        if any(neg in lower for neg in ["no irrigation", "dryland", "rainfed", "सूखा", "नहीं है", "नाही", "without"]):
+            params["irrigation_status"] = 0.0
+        else:
+            params["irrigation_status"] = 1.0
+
+    # NABARD Crop Insurance
+    if any(w in lower for w in ["crop insurance", "pmfby", "फसल बीमा", "पीक विमा"]):
+        target_domain = "nabard"
+        if any(neg in lower for neg in ["no insurance", "uninsured", "नहीं है", "नाही", "without"]):
+            params["crop_insurance"] = 0.0
+        else:
+            params["crop_insurance"] = 1.0
+
+    # 2. Multi-parameter numerical extraction
+    norm_text = _parse_multipliers_in_text(lower)
+
+    # Score (RBI)
+    score_val = _extract_param_value(norm_text, ["score", "cibil", "credit score", "सिबिल", "स्कोर"])
+    if score_val is not None and 300 <= score_val <= 900:
+        params["score"] = score_val
+        target_domain = "rbi"
+
+    # Loan Amount (RBI)
+    loan_val = _extract_param_value(norm_text, ["loan", "borrow", "loan amount", "need a loan of", "debt", "कर्ज", "लोन", "ऋण"])
+    if loan_val is not None and loan_val >= 1000:
+        params["loan_amount"] = loan_val
+        target_domain = "rbi"
+
+    # Income / Net worth / Salary
+    inc_val = _extract_param_value(norm_text, ["income", "earn", "salary", "net worth", "networth", "wealth", "पगार", "वेतन", "आय", "कमाई", "आमदनी", "आवक"])
+    if inc_val is not None:
+        params["income"] = inc_val
+
+    # Policy Vintage / Tenure (IRDAI)
+    vin_val = _extract_param_value(norm_text, ["vintage", "policy vintage", "policy age", "tenure"])
+    if vin_val is None:
+        yrs_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:years|year|yrs|साल|वर्ष|वर्षे)\s*(?:policy|vintage|tenure)?", norm_text, re.IGNORECASE)
+        if yrs_m and ("vintage" in lower or "policy" in lower or target_domain == "irdai"):
+            vin_val = float(yrs_m.group(1))
+    if vin_val is not None and vin_val <= 20:
+        params["tenure"] = vin_val
+        target_domain = "irdai"
+
+    # Claim Amount (IRDAI)
+    claim_val = _extract_param_value(norm_text, ["claim", "claim amount", "bill", "दावा", "क्लेम", "खर्च"])
+    if claim_val is not None and claim_val >= 1000:
+        params["amount"] = claim_val
+        target_domain = "irdai"
+
+    # Land Holding (NABARD)
+    land_val = _extract_param_value(norm_text, ["land", "farmland", "zameen", "sheti", "acre", "acres", "एकर", "एकड़", "एकड़", "जमीन", "शेती"])
+    if land_val is not None and land_val <= 50:
+        params["land_holding"] = land_val
+        target_domain = "nabard"
+
+    # Crop Value (NABARD)
+    crop_val = _extract_param_value(norm_text, ["crop", "harvest", "yield", "produce", "crop value", "harvest yield", "फसल", "पीक", "धान्य"])
+    if crop_val is not None and crop_val >= 1000:
+        params["crop_value"] = crop_val
+        target_domain = "nabard"
+
+    # Enterprise Value (IBBI)
+    ev_m = re.search(r"(\d+(?:\.\d+)?)\s*(?:crore|crores|cr|करोड़)\s*(?:ev|enterprise|resolution)?", norm_text, re.IGNORECASE)
+    if not ev_m:
+        ev_m = re.search(r"(?:enterprise|resolution value|ev|एंटरप्राइज|संकल्प मूल्य)\s*(?:value|amount)?\s*(?:is|was|hai|of)?\s*(\d+(?:\.\d+)?)", norm_text, re.IGNORECASE)
+    if ev_m and ("enterprise" in lower or "ev" in lower or "resolution" in lower or target_domain == "ibbi"):
+        params["ev_amount"] = float(ev_m.group(1))
+        target_domain = "ibbi"
+
+    # Age (PFRDA)
+    age_val = _extract_param_value(norm_text, ["age", "उम्र", "वय", "आयु"])
+    if age_val is not None and 18 <= age_val <= 75:
+        params["age"] = age_val
+        target_domain = "pfrda"
+
+    # Sanitize and clamp all extracted parameters
+    domain_cfg = DOMAINS.get(target_domain, {})
+    field_map = {f["key"]: f for f in domain_cfg.get("fields", [])}
+    sanitized = {}
+    for k, v in params.items():
+        if k in field_map:
+            f = field_map[k]
+            min_v = f.get("min", float("-inf"))
+            max_v = f.get("max", float("inf"))
+            sanitized[k] = max(min_v, min(max_v, float(v)))
 
     feedback = f"Switched to {target_domain.upper()}"
-    if params:
-        for k, v in params.items():
-            feedback += f" and set {k} to {v:g}"
+    if sanitized:
+        parts = [f"{k}: {v:g}" for k, v in sanitized.items()]
+        feedback += " and updated " + ", ".join(parts)
 
     return VoiceIntentResponse(
         domain=target_domain,
-        parameters=params,
+        parameters=sanitized,
         feedback=feedback,
         engine="heuristic_fallback"
     )
@@ -551,9 +617,9 @@ def parse_voice_intent_heuristic(raw_text: str, current_domain: str = "rbi") -> 
 @app.post("/voice-intent", response_model=VoiceIntentResponse, tags=["Multilingual Speech & Voice Intent"])
 async def voice_intent_endpoint(payload: VoiceIntentRequest):
     """
-    Campus LLM-powered Natural Language & Dialect Voice Parser.
+    Campus LLM-powered Natural Language & Dialect Voice Parser with Thinking Mode.
     Connects to TCET Centre of Excellence (CoE) AI Gateway (NVIDIA DGX Spark workstation running Qwen3.6-35B-A3B)
-    with sub-300ms thinking-disabled inference for rich Indian dialect comprehension.
+    with deep chain-of-thought reasoning for multilingual and dialect comprehension.
     Gracefully falls back to heuristic engine if key is omitted or server busy.
     """
     coe_key = os.getenv("COE_AI_KEY") or os.getenv("AI_KEY") or os.getenv("TCET_AI_KEY")
@@ -571,10 +637,10 @@ async def voice_intent_endpoint(payload: VoiceIntentRequest):
                     }
                 ],
                 "temperature": 0.1,
-                "max_tokens": 250,
+                "max_tokens": 1500,
                 "extra_body": {
                     "chat_template_kwargs": {
-                        "enable_thinking": False
+                        "enable_thinking": True
                     }
                 }
             }
@@ -582,13 +648,23 @@ async def voice_intent_endpoint(payload: VoiceIntentRequest):
                 "Authorization": f"Bearer {coe_key.strip()}",
                 "Content-Type": "application/json"
             }
-            async with httpx.AsyncClient(timeout=4.5) as client:
+            async with httpx.AsyncClient(timeout=12.0) as client:
                 resp = await client.post(f"{coe_base_url}/chat/completions", json=req_body, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()
-                    raw_content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                    clean_json_str = re.sub(r"^```json\s*", "", raw_content, flags=re.IGNORECASE)
-                    clean_json_str = re.sub(r"```$", "", clean_json_str).strip()
+                    msg = data.get("choices", [{}])[0].get("message", {})
+                    raw_content = msg.get("content", "").strip()
+
+                    # Strip <think>...</think> chain-of-thought tokens if present
+                    clean_content = re.sub(r"<think>[\s\S]*?</think>", "", raw_content, flags=re.IGNORECASE).strip()
+
+                    # Extract JSON payload (support markdown codeblock or raw json object)
+                    json_match = re.search(r"\{[\s\S]*\}", clean_content)
+                    if json_match:
+                        clean_json_str = json_match.group(0).strip()
+                    else:
+                        clean_json_str = clean_content
+
                     parsed = json.loads(clean_json_str)
 
                     target_domain = parsed.get("domain") or payload.current_domain

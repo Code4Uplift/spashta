@@ -46,28 +46,32 @@ const DOMAINS = {
         label: 'CIBIL / Credit Score',
         flabel: 'Credit Score',
         icon: '📊', min: 300, max: 900, step: 5, base: 650, coef: 0.008,
-        fmt: (v) => `${v}`
+        fmt: (v) => `${v}`,
+        help: 'Credit Bureau / CIBIL score (range 300 to 900). Scores above 750 reflect strong creditworthiness and provide positive attribution towards loan approval under RBI Master Directions.'
       },
       {
         key: 'loan_amount',
         label: 'Requested Loan Amount (₹)',
         flabel: 'Requested Loan Amount',
         icon: '💵', min: 50000, max: 2500000, step: 25000, base: 500000, coef: -0.0000008,
-        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`
+        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
+        help: 'Principal loan quantum requested by the applicant. Higher loan amounts elevate lender exposure risk, requiring stronger income and credit backing.'
       },
       {
         key: 'income',
         label: 'Monthly Income (₹)',
         flabel: 'Monthly Income',
-        icon: '💰', min: 10000, max: 300000, step: 5000, base: 45000, coef: 0.000015,
-        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`
+        icon: '💰', min: 500, max: 300000, step: 500, base: 45000, coef: 0.000015,
+        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
+        help: 'Verified net monthly disposable income. Directly increases debt-servicing capability and provides strong positive attribution towards loan approval.'
       },
       {
         key: 'foir',
         label: 'Existing Obligation (FOIR %)',
         flabel: 'Debt Ratio (FOIR)',
         icon: '⚖️', min: 10, max: 90, step: 1, base: 45, coef: -0.03,
-        fmt: (v) => `${v}%`
+        fmt: (v) => `${v}%`,
+        help: 'Fixed Obligation to Income Ratio (% of monthly income tied to existing debt repayments). Lower FOIR (<40%) indicates sufficient debt servicing headroom.'
       },
       {
         key: 'delinquency',
@@ -78,7 +82,8 @@ const DOMAINS = {
           { v: 0, label: '0 Times (Clean Record)' },
           { v: 1, label: '1 Time Delayed' },
           { v: 2, label: '2+ Times Delayed' }
-        ]
+        ],
+        help: 'Days Past Due repayment delays in the last 90 days. A clean track record (0 delays) is mandatory for prime underwriting; past delays severely penalize the score.'
       },
       {
         key: 'emp_status',
@@ -90,7 +95,8 @@ const DOMAINS = {
           { v: 1, label: 'Salaried Corporate' },
           { v: 0.5, label: 'Self-Employed Professional' },
           { v: -0.5, label: 'Gig / Freelancer' }
-        ]
+        ],
+        help: 'Category of applicant employment stability. Government and corporate salaried profiles carry lower default risk compared to gig or freelance contracts.'
       }
     ],
     presets: [
@@ -119,33 +125,38 @@ const DOMAINS = {
         label: 'Policy Vintage (Years)',
         flabel: 'Policy Tenure',
         icon: '📅', min: 0, max: 15, step: 0.5, base: 3, coef: 0.12,
-        fmt: (v) => `${v} Yrs`
+        fmt: (v) => `${v} Yrs`,
+        help: 'Duration since policy inception. Under Section 45 of the Insurance Act, policies active over 3 years gain statutory protection against arbitrary claim contestability.'
       },
       {
         key: 'amount',
         label: 'Claim Amount (₹)',
         flabel: 'Claim Value',
         icon: '💳', min: 10000, max: 1000000, step: 10000, base: 150000, coef: -0.0000015,
-        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`
+        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
+        help: 'Billed hospitalization or repair expenditure. High-value claims undergo scrutiny against the sum insured and standard medical procedure costs.'
       },
       {
         key: 'network',
         label: 'Network Hospital / Garage',
         flabel: 'Network Facility Status',
-        icon: '🏥', type: 'toggle', base: 1, coef: 0.9
+        icon: '🏥', type: 'toggle', base: 1, coef: 0.9,
+        help: 'Indicates whether treatment is at an IRDAI-empanelled cashless hospital or garage. Turn ON (1) if admitted to a network cashless hospital; turn OFF (0) if seeking reimbursement at an unlisted facility.'
       },
       {
         key: 'pre_existing',
         label: 'Pre-existing Disease Declared',
         flabel: 'Pre-existing Condition Disclosure',
-        icon: '📋', type: 'toggle', base: 1, coef: 1.6
+        icon: '📋', type: 'toggle', base: 1, coef: 1.6,
+        help: 'Discloses whether the applicant declared prior chronic medical conditions at inception. Turn ON (1) if declared transparently; turn OFF (0) if undisclosed.'
       },
       {
         key: 'fraud_score',
         label: 'Anomaly / Risk Index (%)',
         flabel: 'Claim Anomaly Score',
         icon: '🔍', min: 0, max: 100, step: 5, base: 15, coef: -0.062,
-        fmt: (v) => `${v}%`
+        fmt: (v) => `${v}%`,
+        help: 'Algorithmic anomaly score flagging suspicious billing patterns or duplicate claims. Lower scores (<20%) reflect clean clinical adjudication.'
       }
     ],
     presets: [
@@ -174,28 +185,32 @@ const DOMAINS = {
         label: 'Investor Risk Tolerance (1-100)',
         flabel: 'Risk Tolerance Score',
         icon: '🎯', min: 10, max: 100, step: 5, base: 60, coef: 0.045,
-        fmt: (v) => `${v}/100`
+        fmt: (v) => `${v}/100`,
+        help: 'Psychometric risk tolerance under SEBI Investment Advisers Regulations. Higher scores (>70) indicate aggressive capital growth capacity; lower scores prioritize capital safety.'
       },
       {
         key: 'income',
         label: 'Annual Net Worth / Income (₹)',
         flabel: 'Annual Net Worth',
         icon: '💵', min: 200000, max: 5000000, step: 100000, base: 1200000, coef: 0.0000004,
-        fmt: (v) => `₹${(v / 100000).toFixed(1)} Lakh`
+        fmt: (v) => `₹${(v / 100000).toFixed(1)} Lakh`,
+        help: 'Verifiable annual income or liquid net worth. Represents the financial cushion available to absorb potential capital drawdowns in market cycles.'
       },
       {
         key: 'concentration',
         label: 'Portfolio Concentration (%)',
         flabel: 'Portfolio Exposure',
         icon: '📊', min: 5, max: 90, step: 5, base: 30, coef: -0.025,
-        fmt: (v) => `${v}%`
+        fmt: (v) => `${v}%`,
+        help: 'Allocation percentage in a single asset class or thematic fund. High concentration (>40%) violates regulatory diversification guidelines under SEBI circulars.'
       },
       {
         key: 'horizon',
         label: 'Investment Horizon (Years)',
         flabel: 'Investment Tenure',
         icon: '⏳', min: 1, max: 20, step: 1, base: 7, coef: 0.1,
-        fmt: (v) => `${v} Yrs`
+        fmt: (v) => `${v} Yrs`,
+        help: 'Planned holding period before redemption. Longer horizons (5+ years) allow compounding and cushion short-term equity volatility.'
       },
       {
         key: 'risk_category',
@@ -206,7 +221,8 @@ const DOMAINS = {
           { v: 1, label: 'Low Risk (Liquid / G-Sec)' },
           { v: 3, label: 'Moderate Risk (Balanced Funds)' },
           { v: 5, label: 'Very High Risk (Derivative / Crypto)' }
-        ]
+        ],
+        help: 'SEBI 6-tier Risk-o-Meter classification of the financial instrument. Products rated High Risk require substantial investor suitability clearance.'
       }
     ],
     presets: [
@@ -235,35 +251,40 @@ const DOMAINS = {
         label: 'Current Investor Age (Years)',
         flabel: 'Investor Age',
         icon: '👤', min: 18, max: 70, step: 1, base: 35, coef: -0.04,
-        fmt: (v) => `${v} Yrs`
+        fmt: (v) => `${v} Yrs`,
+        help: 'Subscriber current age. Determines remaining wealth-accumulation years until superannuation age 60 under PFRDA life-cycle guidelines.'
       },
       {
         key: 'monthly_contribution',
         label: 'Monthly NPS Contribution (₹)',
         flabel: 'Monthly NPS Savings',
-        icon: '💰', min: 1000, max: 100000, step: 1000, base: 10000, coef: 0.00004,
-        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`
+        icon: '💰', min: 500, max: 100000, step: 500, base: 10000, coef: 0.00004,
+        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
+        help: 'Monthly recurring contribution into Tier-I NPS retirement account. Sustained recurring savings drive annuity accumulation over time.'
       },
       {
         key: 'equity_allocation',
         label: 'Active Equity Allocation (E-Class %)',
         flabel: 'Equity Exposure',
         icon: '📈', min: 5, max: 75, step: 5, base: 40, coef: 0.025,
-        fmt: (v) => `${v}%`
+        fmt: (v) => `${v}%`,
+        help: 'Percentage of retirement portfolio allocated to Class E (Equities). PFRDA caps equity at 75% for young subscribers, automatically tapering down with age.'
       },
       {
         key: 'pension_target',
         label: 'Desired Monthly Pension Target (₹)',
         flabel: 'Target Monthly Pension',
         icon: '🎯', min: 10000, max: 200000, step: 5000, base: 45000, coef: -0.00002,
-        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`
+        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
+        help: 'Targeted post-retirement monthly annuity payout in today purchasing power. Evaluated against actuarial projections of corpus sufficiency.'
       },
       {
         key: 'corpus_index',
         label: 'Retirement Corpus Adequacy Score',
         flabel: 'Corpus Adequacy Ratio',
         icon: '🛡️', min: 10, max: 100, step: 5, base: 50, coef: 0.035,
-        fmt: (v) => `${v}/100`
+        fmt: (v) => `${v}/100`,
+        help: 'Actuarial index measuring whether projected maturity savings can sustain target annuities. Scores above 70 indicate a fully funded retirement plan.'
       }
     ],
     presets: [
@@ -292,28 +313,32 @@ const DOMAINS = {
         label: 'Resolution Enterprise Value (₹ Cr)',
         flabel: 'Offered Resolution Value',
         icon: '🏢', min: 10, max: 1000, step: 10, base: 150, coef: 0.004,
-        fmt: (v) => `₹${v} Cr`
+        fmt: (v) => `₹${v} Cr`,
+        help: 'Proposed aggregate valuation and cash payout offered by the Resolution Applicant to take over the corporate debtor under Section 30(2) IBC.'
       },
       {
         key: 'liquidation_coverage',
         label: 'Liquidation Value Coverage (%)',
         flabel: 'Liquidation Coverage Ratio',
         icon: '⚖️', min: 50, max: 200, step: 5, base: 110, coef: 0.015,
-        fmt: (v) => `${v}%`
+        fmt: (v) => `${v}%`,
+        help: 'Ratio of offered resolution value relative to the official liquidation benchmark. Must comfortably exceed 100% to protect creditor recovery.'
       },
       {
         key: 'timeline_months',
         label: 'Implementation Horizon (Months)',
         flabel: 'Resolution Timeline',
         icon: '⏳', min: 3, max: 36, step: 1, base: 12, coef: -0.06,
-        fmt: (v) => `${v} Mo`
+        fmt: (v) => `${v} Mo`,
+        help: 'Proposed duration to complete restructuring and disburse funds. Shorter timelines (<180-330 days) receive prioritized Committee of Creditors approval.'
       },
       {
         key: 'op_creditor_recovery',
         label: 'Operational Creditor Recovery (%)',
         flabel: 'Operational Creditor Share',
         icon: '🤝', min: 10, max: 100, step: 5, base: 40, coef: 0.02,
-        fmt: (v) => `${v}%`
+        fmt: (v) => `${v}%`,
+        help: 'Percentage payout guaranteed to operational creditors (MSMEs, suppliers, workers) under Section 30(2)(b) IBC.'
       },
       {
         key: 'promoter_track',
@@ -324,7 +349,8 @@ const DOMAINS = {
           { v: 3, label: 'Experienced / Listed Corporate Entity' },
           { v: 1, label: 'Mid-Tier Strategic Consortium' },
           { v: -1, label: 'New / High-Leverage Distress Buyer' }
-        ]
+        ],
+        help: 'Due diligence track record of the resolution applicant under Section 29A IBC. Experienced entities with clean compliance histories gain higher viability approval.'
       }
     ],
     presets: [
@@ -353,33 +379,38 @@ const DOMAINS = {
         label: 'Cultivable Land Holding (Acres)',
         flabel: 'Cultivable Land Size',
         icon: '🌾', min: 0.5, max: 25.0, step: 0.5, base: 3.5, coef: 0.18,
-        fmt: (v) => `${v} Acres`
+        fmt: (v) => `${v} Acres`,
+        help: 'Size of cultivable agricultural land holding. Primary baseline determining scale of finance and borrowing limits under NABARD KCC operational guidelines.'
       },
       {
         key: 'crop_value',
         label: 'Annual Harvest Market Value (₹)',
         flabel: 'Annual Harvest Yield',
-        icon: '🚜', min: 50000, max: 1500000, step: 25000, base: 300000, coef: 0.0000035,
-        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`
+        icon: '🚜', min: 5000, max: 1500000, step: 5000, base: 300000, coef: 0.0000035,
+        fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
+        help: 'Expected gross market turnover from kharif and rabi crop yields based on district MSP (Minimum Support Price) metrics.'
       },
       {
         key: 'informal_debt',
         label: 'Informal Moneylender Debt Share (%)',
         flabel: 'Non-Institutional Debt Ratio',
         icon: '⛓️', min: 0, max: 80, step: 5, base: 20, coef: -0.04,
-        fmt: (v) => `${v}%`
+        fmt: (v) => `${v}%`,
+        help: 'Share of liabilities borrowed from non-institutional moneylenders at high rates. High informal debt (>30%) triggers severe credit distress.'
       },
       {
         key: 'irrigation_status',
         label: 'Perennial Irrigation Source Access',
         flabel: 'Irrigation Reliability',
-        icon: '💧', type: 'toggle', base: 1, coef: 0.85
+        icon: '💧', type: 'toggle', base: 1, coef: 0.85,
+        help: 'Confirms access to perennial irrigation (canal, tube-well, micro-drip). Turn ON (1) for reliable multi-cropping; turn OFF (0) for rainfed monsoon-dependent dryland.'
       },
       {
         key: 'crop_insurance',
         label: 'PM-Fasal Bima Yojana (PMFBY) Insured',
         flabel: 'PMFBY Crop Insurance Coverage',
-        icon: '🛡️', type: 'toggle', base: 1, coef: 1.15
+        icon: '🛡️', type: 'toggle', base: 1, coef: 1.15,
+        help: 'Enrollment in Pradhan Mantri Fasal Bima Yojana. Turn ON (1) to safeguard against weather/pest catastrophes; turn OFF (0) if uninsured.'
       }
     ],
     presets: [

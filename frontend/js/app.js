@@ -314,14 +314,14 @@ async function processSpokenUtterance(fullUtterance) {
   const statusText = document.getElementById('voice-status-text');
 
   if (statusText) {
-    statusText.textContent = `🧠 Parsing: "${fullUtterance}"...`;
+    statusText.textContent = `🧠 [Thinking...] "${fullUtterance}"`;
   }
 
   const apiUrl = window.SPASHTA_API_URL || 'http://localhost:8000';
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 14000);
 
     const response = await fetch(`${apiUrl}/voice-intent`, {
       method: 'POST',
@@ -380,16 +380,21 @@ function applyVoiceIntentResult(data, rawUtterance) {
     domainSwitched = true;
   }
 
-  // 3. Parameters update
+  // 3. Parameters update (supports multiple simultaneous parameters & toggles)
   const targetDomain = data.domain || currentDomain;
   const domainObj = DOMAINS[targetDomain];
   let paramUpdated = false;
+  let updatedParts = [];
 
   if (data.parameters && typeof data.parameters === 'object') {
     for (const [k, v] of Object.entries(data.parameters)) {
       if (typeof v === 'number' && !isNaN(v)) {
         state[k] = v;
         paramUpdated = true;
+        const fieldObj = domainObj?.fields.find(f => f.key === k);
+        const fmtVal = fieldObj && fieldObj.fmt ? fieldObj.fmt(v) : (v === 1 ? 'ON' : (v === 0 ? 'OFF' : v));
+        const fLabel = fieldObj ? (fieldObj.flabel || fieldObj.label) : k;
+        updatedParts.push(`${fLabel}: ${fmtVal}`);
       }
     }
   }
@@ -401,7 +406,11 @@ function applyVoiceIntentResult(data, rawUtterance) {
 
   if (domainSwitched || paramUpdated) {
     if (banner) banner.classList.add('success-flash');
-    const msg = `${enginePrefix}${data.feedback || (domainSwitched ? `Switched to ${domainObj.name}` : 'Parameters updated')}`;
+    let feedbackText = data.feedback;
+    if (!feedbackText && updatedParts.length > 0) {
+      feedbackText = (domainSwitched ? `Switched to ${domainObj.name} and updated ` : 'Updated ') + updatedParts.join(', ');
+    }
+    const msg = `${enginePrefix}${feedbackText || (domainSwitched ? `Switched to ${domainObj.name}` : 'Parameters updated')}`;
     if (statusText) statusText.textContent = msg;
     showVoiceFeedbackToast(msg);
   } else {
@@ -746,12 +755,24 @@ async function buildFields() {
     const icon = f.icon || '👉';
 
     let fieldLabel = f.label;
+    let fieldHelp = f.help || '';
     if (currentLang !== 'en') {
       fieldLabel = await translateService.translateText(f.label, 'en', currentLang);
+      if (fieldHelp) {
+        fieldHelp = await translateService.translateText(fieldHelp, 'en', currentLang);
+      }
     }
 
+    const infoBtnHtml = fieldHelp ? `<button type="button" class="field-info-btn" title="Click to view regulatory explanation" aria-label="Field explanation" data-field-key="${f.key}">ℹ️</button>` : '';
+    const infoCardHtml = fieldHelp ? `<div class="field-info-card" id="info-card-${f.key}" style="display: none;"><span class="field-info-icon">💡</span><span class="field-info-text">${fieldHelp}</span></div>` : '';
+
     if (f.type === 'select') {
-      div.innerHTML = `<div class="field-row"><label>${icon} ${fieldLabel}</label></div>`;
+      div.innerHTML = `
+        <div class="field-row">
+          <label class="field-label-wrap"><span>${icon} ${fieldLabel}</span> ${infoBtnHtml}</label>
+        </div>
+        ${infoCardHtml}
+      `;
       const selEl = document.createElement('select');
       selEl.className = 'field-select';
       for (const o of f.options) {
@@ -774,12 +795,14 @@ async function buildFields() {
       const isChecked = state[f.key] ? 'checked' : '';
       div.innerHTML = `
         <div class="toggle-row">
-          <label>${icon} ${fieldLabel}</label>
+          <label class="field-label-wrap"><span>${icon} ${fieldLabel}</span> ${infoBtnHtml}</label>
           <label class="switch">
             <input type="checkbox" ${isChecked}>
             <span class="track"></span>
           </label>
-        </div>`;
+        </div>
+        ${infoCardHtml}
+      `;
       const cb = div.querySelector('input[type="checkbox"]');
       cb.addEventListener('change', (e) => {
         state[f.key] = e.target.checked ? 1 : 0;
@@ -789,9 +812,10 @@ async function buildFields() {
       const currentVal = state[f.key] !== undefined ? state[f.key] : f.base;
       div.innerHTML = `
         <div class="field-row">
-          <label>${icon} ${fieldLabel}</label>
+          <label class="field-label-wrap"><span>${icon} ${fieldLabel}</span> ${infoBtnHtml}</label>
           <span class="val">${f.fmt ? f.fmt(currentVal) : currentVal}</span>
         </div>
+        ${infoCardHtml}
         <input type="range" min="${f.min}" max="${f.max}" step="${f.step}" value="${currentVal}">
       `;
       const range = div.querySelector('input');
@@ -802,6 +826,22 @@ async function buildFields() {
         renderCert();
       });
     }
+
+    // Attach info button toggle interaction
+    const infoBtn = div.querySelector('.field-info-btn');
+    if (infoBtn) {
+      infoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const card = div.querySelector('.field-info-card');
+        if (card) {
+          const isHidden = card.style.display === 'none';
+          card.style.display = isHidden ? 'flex' : 'none';
+          infoBtn.classList.toggle('active', isHidden);
+        }
+      });
+    }
+
     wrap.appendChild(div);
   }
 

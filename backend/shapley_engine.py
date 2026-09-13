@@ -77,7 +77,7 @@ DOMAINS: Dict[str, Dict[str, Any]] = {
                 "key": "income",
                 "label": "Monthly Income (₹)",
                 "flabel": "Monthly Income",
-                "min": 10000.0, "max": 300000.0, "step": 5000.0, "base": 45000.0, "coef": 0.000015, "type": "range"
+                "min": 500.0, "max": 300000.0, "step": 500.0, "base": 45000.0, "coef": 0.000015, "type": "range"
             },
             {
                 "key": "foir",
@@ -220,7 +220,7 @@ DOMAINS: Dict[str, Dict[str, Any]] = {
                 "key": "monthly_contribution",
                 "label": "Monthly NPS Contribution (₹)",
                 "flabel": "Monthly NPS Savings",
-                "min": 1000.0, "max": 100000.0, "step": 1000.0, "base": 10000.0, "coef": 0.00004, "type": "range"
+                "min": 500.0, "max": 100000.0, "step": 500.0, "base": 10000.0, "coef": 0.00004, "type": "range"
             },
             {
                 "key": "equity_allocation",
@@ -313,7 +313,7 @@ DOMAINS: Dict[str, Dict[str, Any]] = {
                 "key": "crop_value",
                 "label": "Annual Harvest Market Value (₹)",
                 "flabel": "Annual Harvest Yield",
-                "min": 50000.0, "max": 1500000.0, "step": 25000.0, "base": 300000.0, "coef": 0.0000035, "type": "range"
+                "min": 5000.0, "max": 1500000.0, "step": 5000.0, "base": 300000.0, "coef": 0.0000035, "type": "range"
             },
             {
                 "key": "informal_debt",

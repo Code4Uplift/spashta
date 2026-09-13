@@ -682,3 +682,86 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
     print-color-adjust: exact !important;
   }
 }
+
+/* -----------------------------------------------------------------------------
+ * Interactive Field Info 'ℹ️' Tooltip & Explanatory Cards
+ * ----------------------------------------------------------------------------- */
+.field-label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+}
+
+.field-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  line-height: 1;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 50%;
+  color: #a5b4fc;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+  user-select: none;
+  vertical-align: middle;
+}
+
+.field-info-btn:hover {
+  background: #6366f1;
+  color: #ffffff;
+  border-color: #818cf8;
+  transform: scale(1.18);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+}
+
+.field-info-btn.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #818cf8;
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.6);
+}
+
+.field-info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 6px 0 10px 0;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-left: 3px solid #6366f1;
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  animation: fadeInDown 0.22s ease-out;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.field-info-icon {
+  font-size: 15px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.field-info-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #cbd5e1;
+  letter-spacing: 0.01em;
+}
