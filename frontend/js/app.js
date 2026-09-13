@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initVoiceControls();
   initVerifyModal();
   initSpeechRecognition();
+  initChatCopilot();
   initPrivacyShield();
   
   buildFields();
@@ -223,6 +224,8 @@ function initSpeechRecognition() {
     dictateBtn.classList.add('listening');
     const textSpan = document.getElementById('btn-dictate-text');
     if (textSpan) textSpan.textContent = 'Stop Listening';
+    const chatMicBtn = document.getElementById('chat-mic-btn');
+    if (chatMicBtn) chatMicBtn.classList.add('recording');
     if (banner) {
       banner.style.display = 'flex';
       banner.classList.remove('success-flash');
@@ -250,7 +253,7 @@ function initSpeechRecognition() {
     if (event.results[0].isFinal || final) {
       const fullUtterance = (final || currentText).trim();
       if (fullUtterance) {
-        processSpokenUtterance(fullUtterance);
+        processSpokenUtterance(fullUtterance, 'voice');
       }
     }
   };
@@ -280,6 +283,9 @@ function stopVoiceDictate() {
   const dictateBtn = document.getElementById('btn-dictate');
   const textSpan = document.getElementById('btn-dictate-text');
   const banner = document.getElementById('voice-status-banner');
+  const chatMicBtn = document.getElementById('chat-mic-btn');
+  if (chatMicBtn) chatMicBtn.classList.remove('recording');
+
   if (dictateBtn) {
     dictateBtn.classList.remove('listening');
     if (textSpan) textSpan.textContent = 'Voice Dictate';
@@ -299,10 +305,161 @@ function triggerVoiceDictate() {
   startVoiceDictate();
 }
 
+// -----------------------------------------------------------------------------
+// AI Copilot & Voice/Text Chat Window
+// -----------------------------------------------------------------------------
+function initChatCopilot() {
+  const form = document.getElementById('chat-form');
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send-btn');
+  const micBtn = document.getElementById('chat-mic-btn');
+  const clearBtn = document.getElementById('btn-chat-clear');
+  const suggestions = document.getElementById('chat-suggestions');
+
+  if (!form || !input) return;
+
+  const handleSend = () => {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    processSpokenUtterance(text, 'chat');
+  };
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handleSend();
+  });
+
+  if (sendBtn) {
+    sendBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleSend();
+    });
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener('click', () => {
+      if (isDictating) {
+        stopVoiceDictate();
+      } else {
+        startVoiceDictate();
+      }
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      resetChatMessages();
+    });
+  }
+
+  if (suggestions) {
+    suggestions.addEventListener('click', (e) => {
+      const chip = e.target.closest('.chat-chip');
+      if (chip && chip.dataset.query) {
+        input.value = chip.dataset.query;
+        handleSend();
+      }
+    });
+  }
+}
+
+function resetChatMessages() {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="chat-bubble chat-bubble-ai">
+      <div class="chat-bubble-avatar">🤖</div>
+      <div class="chat-bubble-body">
+        <p>Chat cleared. Send a text or record a voice note to analyze parameters and instantly update the attribution bars.</p>
+      </div>
+    </div>
+  `;
+}
+
+function appendChatMessage(sender, text, pillsHtml = '') {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`;
+
+  const avatar = sender === 'user' ? '🗣️' : '🤖';
+  const body = document.createElement('div');
+  body.className = 'chat-bubble-body';
+
+  let html = `<p>${escapeHtml(text)}</p>`;
+  if (pillsHtml) {
+    html += `<div style="margin-top: 4px;">${pillsHtml}</div>`;
+  }
+  body.innerHTML = html;
+
+  if (sender !== 'user') {
+    const avatarEl = document.createElement('div');
+    avatarEl.className = 'chat-bubble-avatar';
+    avatarEl.textContent = avatar;
+    bubble.appendChild(avatarEl);
+    bubble.appendChild(body);
+  } else {
+    bubble.appendChild(body);
+  }
+
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendChatThinking(customText = 'AI is analyzing your input...') {
+  removeChatThinking();
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  const thinking = document.createElement('div');
+  thinking.id = 'chat-thinking-indicator';
+  thinking.className = 'chat-bubble-thinking';
+  thinking.innerHTML = `
+    <span>${escapeHtml(customText)}</span>
+    <div class="thinking-dots">
+      <span></span><span></span><span></span>
+    </div>
+  `;
+  container.appendChild(thinking);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeChatThinking() {
+  const existing = document.getElementById('chat-thinking-indicator');
+  if (existing) existing.remove();
+}
+
+function highlightAttributionBars() {
+  const cert = document.getElementById('cert');
+  if (!cert) return;
+  const elements = cert.querySelectorAll('.factor, .verdict-hero, .visual-analytics');
+  elements.forEach(el => {
+    el.classList.remove('bar-row-highlight');
+    void el.offsetWidth;
+    el.classList.add('bar-row-highlight');
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, function(m) {
+    switch (m) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      default: return m;
+    }
+  });
+}
+
 let lastProcessedUtterance = '';
 let lastProcessedTime = 0;
 
-async function processSpokenUtterance(fullUtterance) {
+async function processSpokenUtterance(fullUtterance, source = 'voice') {
   const now = Date.now();
   if (fullUtterance === lastProcessedUtterance && (now - lastProcessedTime) < 2500) {
     return;
@@ -310,11 +467,15 @@ async function processSpokenUtterance(fullUtterance) {
   lastProcessedUtterance = fullUtterance;
   lastProcessedTime = now;
 
+  // Add user bubble and thinking bubble into chat
+  appendChatMessage('user', fullUtterance);
+  appendChatThinking(source === 'voice' ? 'Transcribing & analyzing voice note...' : 'AI Copilot analyzing parameters...');
+
   const banner = document.getElementById('voice-status-banner');
   const statusText = document.getElementById('voice-status-text');
 
   if (statusText) {
-    statusText.textContent = `🧠 [Thinking...] "${fullUtterance}"`;
+    statusText.textContent = `🧠 [Analyzing...] "${fullUtterance}"`;
   }
 
   const apiUrl = window.SPASHTA_API_URL || 'http://localhost:8000';
@@ -341,7 +502,7 @@ async function processSpokenUtterance(fullUtterance) {
     if (response.ok) {
       const data = await response.json();
       console.log('Voice Intent API response:', data);
-      applyVoiceIntentResult(data, fullUtterance);
+      await applyVoiceIntentResult(data, fullUtterance);
       return;
     }
   } catch (err) {
@@ -349,18 +510,23 @@ async function processSpokenUtterance(fullUtterance) {
   }
 
   // Graceful fallback to client-side heuristic engine
-  parseAndApplySpokenInput(fullUtterance);
+  parseAndApplySpokenInput(fullUtterance, true);
 }
 
-function applyVoiceIntentResult(data, rawUtterance) {
+async function applyVoiceIntentResult(data, rawUtterance) {
+  removeChatThinking();
   const banner = document.getElementById('voice-status-banner');
   const statusText = document.getElementById('voice-status-text');
   const isCoE = data.engine === 'tcet_coe_qwen3.6';
-  const enginePrefix = isCoE ? '✨ [Qwen3.6 CoE AI] ' : '✓ ';
+  const enginePrefix = isCoE ? '✨ [Qwen3.6 CoE AI] ' : '';
 
   // 1. Action execution
   if (data.action) {
-    if (data.action === 'compute') computeScore();
+    if (data.action === 'compute') {
+      computeScore();
+      await renderCert();
+      highlightAttributionBars();
+    }
     else if (data.action === 'reset') resetDomain();
     else if (data.action === 'speak') triggerAudioPlayback();
     else if (data.action === 'stop_audio') translateService.stopAudio();
@@ -370,6 +536,7 @@ function applyVoiceIntentResult(data, rawUtterance) {
     const msg = `${enginePrefix}${data.feedback || 'Action executed'}`;
     if (statusText) statusText.textContent = msg;
     showVoiceFeedbackToast(msg);
+    appendChatMessage('ai', `${enginePrefix}${data.feedback || 'Action executed successfully.'}`);
     return;
   }
 
@@ -385,6 +552,7 @@ function applyVoiceIntentResult(data, rawUtterance) {
   const domainObj = DOMAINS[targetDomain];
   let paramUpdated = false;
   let updatedParts = [];
+  let pillsHtml = '';
 
   if (data.parameters && typeof data.parameters === 'object') {
     for (const [k, v] of Object.entries(data.parameters)) {
@@ -395,13 +563,15 @@ function applyVoiceIntentResult(data, rawUtterance) {
         const fmtVal = fieldObj && fieldObj.fmt ? fieldObj.fmt(v) : (v === 1 ? 'ON' : (v === 0 ? 'OFF' : v));
         const fLabel = fieldObj ? (fieldObj.flabel || fieldObj.label) : k;
         updatedParts.push(`${fLabel}: ${fmtVal}`);
+        pillsHtml += `<span class="chat-param-pill">✓ ${fLabel}: ${fmtVal}</span>`;
       }
     }
   }
 
-  if (paramUpdated) {
+  if (paramUpdated || domainSwitched) {
     buildFields();
-    renderCert();
+    await renderCert();
+    highlightAttributionBars();
   }
 
   if (domainSwitched || paramUpdated) {
@@ -413,14 +583,17 @@ function applyVoiceIntentResult(data, rawUtterance) {
     const msg = `${enginePrefix}${feedbackText || (domainSwitched ? `Switched to ${domainObj.name}` : 'Parameters updated')}`;
     if (statusText) statusText.textContent = msg;
     showVoiceFeedbackToast(msg);
+    appendChatMessage('ai', `${enginePrefix}${feedbackText || 'Profile parameters updated. Live Shapley attribution bars updated on the right.'}`, pillsHtml);
   } else {
     // If CoE returned empty or didn't extract, try local parser fallback
-    const fallbackApplied = parseAndApplySpokenInput(rawUtterance);
-    if (!fallbackApplied && statusText) {
-      statusText.textContent = `🗣️ "${rawUtterance}"`;
+    const fallbackApplied = parseAndApplySpokenInput(rawUtterance, false);
+    if (!fallbackApplied) {
+      if (statusText) statusText.textContent = `🗣️ "${rawUtterance}"`;
+      appendChatMessage('ai', `I analyzed "${rawUtterance}", but couldn't detect specific profile values. Try saying or typing: "CIBIL 780, salary 50000, loan 200000" or click a suggestion chip above.`);
     }
   }
 }
+
 
 // Spoken number words mapping across English, Hindi, Marathi & regional Indic words
 const SPOKEN_NUMBER_WORDS = [
@@ -500,26 +673,31 @@ function detectSpokenDomainInUtterance(text) {
   return null;
 }
 
-function parseAndApplySpokenInput(rawText) {
+function parseAndApplySpokenInput(rawText, fromChat = false) {
+  removeChatThinking();
   const lower = rawText.toLowerCase().trim();
   const banner = document.getElementById('voice-status-banner');
   const statusText = document.getElementById('voice-status-text');
 
-  console.log('SPASHTA Voice Command Received:', lower);
+  console.log('SPASHTA Voice/Chat Command Received:', lower);
 
   // 1. Check for Action Commands
   if (lower.includes('compute') || lower.includes('calculate') || lower.includes('explain') || lower.includes('स्पष्टीकरण') || lower.includes('गणना') || lower.includes('हिसाब') || lower.includes('कणक्कीடு')) {
     computeScore();
+    renderCert().then(() => highlightAttributionBars());
     if (banner) banner.classList.add('success-flash');
     if (statusText) statusText.textContent = '⚡ Computing Aumann-Shapley explanations...';
     showVoiceFeedbackToast('⚡ Computing Aumann-Shapley explanations...');
+    if (fromChat) appendChatMessage('ai', '⚡ Computing Aumann-Shapley explanations. Marginal attribution bars updated live.');
     return true;
   }
   if (lower.includes('reset') || lower.includes('clear') || lower.includes('रीसेट') || lower.includes('पूर्ववत')) {
     resetDomain();
+    renderCert().then(() => highlightAttributionBars());
     if (banner) banner.classList.add('success-flash');
     if (statusText) statusText.textContent = '🔄 Reset domain parameters to baseline';
     showVoiceFeedbackToast('🔄 Reset all domain parameters to baseline');
+    if (fromChat) appendChatMessage('ai', '🔄 Reset all domain parameters to baseline.');
     return true;
   }
   if (lower.includes('play') || lower.includes('listen') || lower.includes('speak') || lower.includes('read') || lower.includes('audio') || lower.includes('सुनाओ') || lower.includes('ऐका') || lower.includes('बोलो')) {
@@ -527,6 +705,7 @@ function parseAndApplySpokenInput(rawText) {
     if (banner) banner.classList.add('success-flash');
     if (statusText) statusText.textContent = '🔊 Playing voice audio explanation';
     showVoiceFeedbackToast('🔊 Playing voice explanation');
+    if (fromChat) appendChatMessage('ai', '🔊 Playing spoken audio explanation.');
     return true;
   }
   if (lower.includes('stop') || lower.includes('pause') || lower.includes('शांत') || lower.includes('रोको') || lower.includes('थांबा')) {
@@ -534,6 +713,7 @@ function parseAndApplySpokenInput(rawText) {
     if (banner) banner.classList.add('success-flash');
     if (statusText) statusText.textContent = '⏹️ Audio explanation stopped';
     showVoiceFeedbackToast('⏹️ Audio explanation stopped');
+    if (fromChat) appendChatMessage('ai', '⏹️ Audio explanation stopped.');
     return true;
   }
   if (lower.includes('privacy') || lower.includes('shield') || lower.includes('dpdp') || lower.includes('गोपनीयता')) {
@@ -541,6 +721,7 @@ function parseAndApplySpokenInput(rawText) {
     if (banner) banner.classList.add('success-flash');
     if (statusText) statusText.textContent = '🛡️ Toggled DPDP Privacy Shield';
     showVoiceFeedbackToast('🛡️ Toggled DPDP Privacy Shield');
+    if (fromChat) appendChatMessage('ai', '🛡️ Toggled DPDP On-Device Privacy Shield.');
     return true;
   }
 
@@ -552,111 +733,151 @@ function parseAndApplySpokenInput(rawText) {
     domainSwitched = true;
   }
 
-  // 3. Extract Spoken Numbers and Multipliers
-  const extracted = extractSpokenNumber(lower);
   let targetDomain = detectedDomain || currentDomain;
-  const d = DOMAINS[targetDomain];
-  let matchedKey = null;
-
-  // Domain-specific field keyword mappings
-  if (targetDomain === 'sebi') {
-    if (lower.includes('income') || lower.includes('net worth') || lower.includes('networth') || lower.includes('wealth') || lower.includes('annual') || lower.includes('संपत्ति') || lower.includes('संपत्ती') || lower.includes('नेटवर्थ') || lower.includes('आय') || lower.includes('उत्पन्न') || lower.includes('कमाई') || lower.includes('சொத்து') || lower.includes('నికర విలువ')) matchedKey = 'income';
-    else if (lower.includes('risk') || lower.includes('tolerance') || lower.includes('appetite') || lower.includes('जोखिम') || lower.includes('जोखीम') || lower.includes('रिस्क')) matchedKey = 'risk_appetite';
-    else if (lower.includes('concentration') || lower.includes('exposure') || lower.includes('एकाग्रता') || lower.includes('एक्सपोजर') || lower.includes('वाटप')) matchedKey = 'concentration';
-    else if (lower.includes('horizon') || lower.includes('tenure') || lower.includes('holding') || lower.includes('कालावधी') || lower.includes('मुदत') || lower.includes('अवधि') || lower.includes('वर्ष')) matchedKey = 'horizon';
-    else if (lower.includes('category') || lower.includes('meter') || lower.includes('श्रेणी')) matchedKey = 'risk_category';
-  } else if (targetDomain === 'irdai') {
-    if (lower.includes('tenure') || lower.includes('vintage') || lower.includes('policy vintage') || lower.includes('policy age') || lower.includes('year') || lower.includes('years') || lower.includes('वर्ष') || lower.includes('साल') || lower.includes('वर्षे') || lower.includes('कालावधी') || lower.includes('मुदत') || lower.includes('பாலிசி காலம்') || lower.includes('కాలం')) matchedKey = 'tenure';
-    else if (lower.includes('claim') || lower.includes('bill') || lower.includes('amount') || lower.includes('दावा') || lower.includes('दाव्याची') || lower.includes('क्लेम') || lower.includes('रक्कम') || lower.includes('खर्च') || lower.includes('கோரிக்கை')) matchedKey = 'amount';
-    else if (lower.includes('network') || lower.includes('hospital') || lower.includes('cashless') || lower.includes('नेटवर्क') || lower.includes('कॅशलेस') || lower.includes('अस्पताल') || lower.includes('रुग्णालय')) matchedKey = 'network';
-    else if (lower.includes('pre-existing') || lower.includes('pre existing') || lower.includes('ped') || lower.includes('disease') || lower.includes('illness') || lower.includes('पुरानी बीमारी') || lower.includes('जुना आजार') || lower.includes('आजार') || lower.includes('रोग')) matchedKey = 'pre_existing';
-    else if (lower.includes('fraud') || lower.includes('anomaly') || lower.includes('suspicion') || lower.includes('धोखाधड़ी') || lower.includes('फ्रॉड') || lower.includes('संशय') || lower.includes('घोटाला') || lower.includes('जोखिम')) matchedKey = 'fraud_score';
-  } else if (targetDomain === 'rbi') {
-    if (lower.includes('cibil') || lower.includes('score') || lower.includes('credit score') || lower.includes('rating') || lower.includes('सिबिल') || lower.includes('क्रेडिट स्कोर') || lower.includes('स्कोर') || lower.includes('पत') || lower.includes('சிபில்')) matchedKey = 'score';
-    else if (lower.includes('loan') || lower.includes('borrow') || lower.includes('debt') || lower.includes('कर्ज') || lower.includes('ऋण') || lower.includes('लोन') || lower.includes('उधार') || lower.includes('கடன்')) matchedKey = 'loan_amount';
-    else if (lower.includes('income') || lower.includes('salary') || lower.includes('wage') || lower.includes('pay') || lower.includes('monthly') || lower.includes('stipend') || lower.includes('आय') || lower.includes('वेतन') || lower.includes('पगार') || lower.includes('कमाई') || lower.includes('आमदनी') || lower.includes('मासिक उत्पन्न') || lower.includes('तनख्वाह') || lower.includes('आवक') || lower.includes('दरमहा') || lower.includes('சம்பளம்')) matchedKey = 'income';
-    else if (lower.includes('foir') || lower.includes('obligation') || lower.includes('emi') || lower.includes('खर्च') || lower.includes('हप्ता') || lower.includes('देनदारी')) matchedKey = 'foir';
-    else if (lower.includes('delinquency') || lower.includes('dpd') || lower.includes('default') || lower.includes('delay') || lower.includes('late') || lower.includes('डिफ़ॉल्ट') || lower.includes('देरी') || lower.includes('थकीत') || lower.includes('उशीर')) matchedKey = 'delinquency';
-    else if (lower.includes('employment') || lower.includes('employee') || lower.includes('job') || lower.includes('corporate') || lower.includes('govt') || lower.includes('नौकरी') || lower.includes('रोजगार') || lower.includes('काम') || lower.includes('नोकरी')) matchedKey = 'emp_status';
-  } else if (targetDomain === 'pfrda') {
-    if (lower.includes('age') || lower.includes('investor age') || lower.includes('years old') || lower.includes('वय') || lower.includes('उम्र') || lower.includes('आयु') || lower.includes('वर्ष') || lower.includes('வயது') || lower.includes('వయస్సు')) matchedKey = 'age';
-    else if (lower.includes('contribution') || lower.includes('monthly contribution') || lower.includes('nps') || lower.includes('savings') || lower.includes('अंशदान') || lower.includes('मासिक अंशदान') || lower.includes('एनपीएस') || lower.includes('बचत') || lower.includes('हप्ता')) matchedKey = 'monthly_contribution';
-    else if (lower.includes('equity') || lower.includes('shares') || lower.includes('stock') || lower.includes('इक्विटी') || lower.includes('शेअर वाटप') || lower.includes('समभाग')) matchedKey = 'equity_allocation';
-    else if (lower.includes('pension target') || lower.includes('target pension') || lower.includes('pension') || lower.includes('पेन्शन') || lower.includes('पेंशन') || lower.includes('निवृत्तीवेतन') || lower.includes('ஓய்வூதியம்')) matchedKey = 'pension_target';
-    else if (lower.includes('corpus') || lower.includes('adequacy') || lower.includes('कॉर्पस') || lower.includes('संचित निधी') || lower.includes('फंड')) matchedKey = 'corpus_index';
-  } else if (targetDomain === 'ibbi') {
-    if (lower.includes('enterprise') || lower.includes('resolution value') || lower.includes('ev') || lower.includes('व्हॅल्यू') || lower.includes('एंटरप्राइझ व्हॅल्यू') || lower.includes('मूल्य') || lower.includes('रिजोल्यूशन वैल्यू') || lower.includes('संकल्प मूल्य')) matchedKey = 'ev_amount';
-    else if (lower.includes('liquidation') || lower.includes('coverage') || lower.includes('लिक्विडेशन') || lower.includes('परिसमापन मूल्य') || lower.includes('कव्हरेज')) matchedKey = 'liquidation_coverage';
-    else if (lower.includes('timeline') || lower.includes('month') || lower.includes('months') || lower.includes('महिने') || lower.includes('महीने') || lower.includes('कालावधी') || lower.includes('मुदत')) matchedKey = 'timeline_months';
-    else if (lower.includes('recovery') || lower.includes('creditor') || lower.includes('operational') || lower.includes('रिकव्हरी') || lower.includes('वसुली') || lower.includes('लेनदार')) matchedKey = 'op_creditor_recovery';
-    else if (lower.includes('promoter') || lower.includes('governance') || lower.includes('track') || lower.includes('प्रमोटर') || lower.includes('प्रवर्तक') || lower.includes('कारभार')) matchedKey = 'promoter_track';
-  } else if (targetDomain === 'nabard') {
-    if (lower.includes('land') || lower.includes('acre') || lower.includes('acres') || lower.includes('farmland') || lower.includes('zameen') || lower.includes('sheti') || lower.includes('जमीन') || lower.includes('शेती') || lower.includes('एकर') || lower.includes('एकड़') || lower.includes('भूमि') || lower.includes('शेतजमीन') || lower.includes('நிலம்') || lower.includes('భూమి')) matchedKey = 'land_holding';
-    else if (lower.includes('crop') || lower.includes('yield') || lower.includes('harvest') || lower.includes('produce') || lower.includes('fasal') || lower.includes('उत्पन्न') || lower.includes('पीक') || lower.includes('धान्य') || lower.includes('फसल') || lower.includes('விளைச்சல்')) matchedKey = 'crop_value';
-    else if (lower.includes('informal') || lower.includes('moneylender') || lower.includes('sahukar') || lower.includes('सावकारी कर्ज') || lower.includes('खाजगी कर्ज') || lower.includes('सावकार') || lower.includes('साहुकार')) matchedKey = 'informal_debt';
-    else if (lower.includes('irrigation') || lower.includes('water') || lower.includes('borewell') || lower.includes('canal') || lower.includes('सिंचाई') || lower.includes('सिंचन') || lower.includes('पाणी पुरवठा') || lower.includes('ओलिताची सोय') || lower.includes('बोरवेल')) matchedKey = 'irrigation_status';
-    else if (lower.includes('crop insurance') || lower.includes('insurance') || lower.includes('pmfby') || lower.includes('bima') || lower.includes('पीक विमा') || lower.includes('फसल बीमा') || lower.includes('विमा') || lower.includes('பயிர் காப்பீடு')) matchedKey = 'crop_insurance';
-  }
 
   // Cross-domain fallback: if parameter belongs uniquely to another domain, switch to it!
-  if (!matchedKey) {
-    if (lower.includes('policy vintage') || lower.includes('vintage') || lower.includes('पॉलिसी विंटेज')) {
-      targetDomain = 'irdai'; switchDomain('irdai'); matchedKey = 'tenure'; domainSwitched = true;
-    } else if (lower.includes('cibil') || lower.includes('सिबिल')) {
-      targetDomain = 'rbi'; switchDomain('rbi'); matchedKey = 'score'; domainSwitched = true;
-    } else if (lower.includes('land') || lower.includes('acre') || lower.includes('शेती') || lower.includes('एकड़') || lower.includes('एकर')) {
-      targetDomain = 'nabard'; switchDomain('nabard'); matchedKey = 'land_holding'; domainSwitched = true;
-    } else if (lower.includes('enterprise value') || lower.includes('resolution value') || lower.includes('एंटरप्राइज वैल्यू')) {
-      targetDomain = 'ibbi'; switchDomain('ibbi'); matchedKey = 'ev_amount'; domainSwitched = true;
-    } else if (lower.includes('pension target') || lower.includes('पेन्शन ध्येय')) {
-      targetDomain = 'pfrda'; switchDomain('pfrda'); matchedKey = 'pension_target'; domainSwitched = true;
-    } else if (lower.includes('age') || lower.includes('उम्र') || lower.includes('वय') || lower.includes('வயது') || lower.includes('వయస్సు')) {
-      targetDomain = 'pfrda'; switchDomain('pfrda'); matchedKey = 'age'; domainSwitched = true;
+  if (lower.includes('policy vintage') || lower.includes('vintage') || lower.includes('पॉलिसी विंटेज')) {
+    targetDomain = 'irdai'; switchDomain('irdai'); domainSwitched = true;
+  } else if (lower.includes('cibil') || lower.includes('सिबिल')) {
+    targetDomain = 'rbi'; switchDomain('rbi'); domainSwitched = true;
+  } else if (lower.includes('land') || lower.includes('acre') || lower.includes('शेती') || lower.includes('एकड़') || lower.includes('एकर')) {
+    targetDomain = 'nabard'; switchDomain('nabard'); domainSwitched = true;
+  } else if (lower.includes('enterprise value') || lower.includes('resolution value') || lower.includes('एंटरप्राइज वैल्यू')) {
+    targetDomain = 'ibbi'; switchDomain('ibbi'); domainSwitched = true;
+  } else if (lower.includes('pension target') || lower.includes('पेन्शन ध्येय')) {
+    targetDomain = 'pfrda'; switchDomain('pfrda'); domainSwitched = true;
+  }
+
+  const domainObj = DOMAINS[targetDomain];
+
+  // Helper to extract a number right around specific keywords
+  function extractNearbyNumber(str, keywords) {
+    for (const kw of keywords) {
+      const p1 = new RegExp('(?:' + kw + ')[^0-9\u0900-\u097F]{0,18}?(\\d+(?:\\.\\d+)?\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|लाख|हजार)?)', 'i');
+      const m1 = str.match(p1);
+      if (m1) {
+        const ext = extractSpokenNumber(m1[1]);
+        if (ext) return ext;
+      }
+      const p2 = new RegExp('(\\d+(?:\\.\\d+)?\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|लाख|हजार)?)[^0-9\u0900-\u097F]{0,18}?(?:' + kw + ')', 'i');
+      const m2 = str.match(p2);
+      if (m2) {
+        const ext = extractSpokenNumber(m2[1]);
+        if (ext) return ext;
+      }
+    }
+    return null;
+  }
+
+  const fieldKeyKeywords = {
+    // RBI
+    score: ['cibil', 'credit score', 'score', 'rating', 'सिबिल', 'क्रेडिट स्कोर', 'स्कोर', 'पत', 'சிபில்'],
+    loan_amount: ['loan', 'borrow', 'debt', 'कर्ज', 'ऋण', 'लोन', 'उधार', 'கடன்'],
+    income: ['income', 'salary', 'wage', 'pay', 'monthly', 'earn', 'earning', 'net worth', 'networth', 'wealth', 'stipend', 'आय', 'वेतन', 'पगार', 'कमाई', 'आमदनी', 'मासिक उत्पन्न', 'तनख्वाह', 'संपत्ति', 'नेटवर्थ', 'சொத்து'],
+    foir: ['foir', 'obligation', 'emi', 'हप्ता', 'देनदारी'],
+    delinquency: ['delinquency', 'dpd', 'default', 'delay', 'late', 'डिफ़ॉल्ट', 'देरी', 'थकीत', 'उशीर'],
+    // IRDAI
+    tenure: ['tenure', 'vintage', 'policy vintage', 'policy age', 'year', 'years', 'वर्ष', 'साल', 'वर्षे', 'कालावधी', 'मुदत', 'காலம்'],
+    amount: ['claim', 'bill', 'claim amount', 'दावा', 'दाव्याची', 'क्लेम', 'रक्कम', 'खर्च', 'கோரிக்கை'],
+    pre_existing: ['pre-existing', 'pre existing', 'ped', 'disease', 'illness', 'पुरानी बीमारी', 'जुना आजार', 'आजार', 'रोग'],
+    // SEBI
+    risk_appetite: ['risk', 'tolerance', 'appetite', 'जोखिम', 'जोखीम', 'रिस्क'],
+    concentration: ['concentration', 'exposure', 'एकाग्रता', 'एक्सपोजर'],
+    horizon: ['horizon', 'holding', 'अवधि'],
+    // PFRDA
+    age: ['age', 'investor age', 'years old', 'वय', 'उम्र', 'आयु', 'வயது', 'వయస్సు'],
+    monthly_contribution: ['contribution', 'monthly contribution', 'nps', 'savings', 'अंशदान', 'मासिक अंशदान', 'एनपीएस', 'बचत'],
+    pension_target: ['pension target', 'target pension', 'pension', 'पेन्शन', 'पेंशन', 'निवृत्तीवेतन'],
+    // IBBI
+    ev_amount: ['enterprise', 'resolution value', 'ev', 'व्हॅल्यू', 'एंटरप्राइझ व्हॅल्यू', 'मूल्य', 'संकल्प मूल्य'],
+    timeline_months: ['timeline', 'month', 'months', 'महिने', 'महीने'],
+    // NABARD
+    land_holding: ['land', 'acre', 'acres', 'farmland', 'zameen', 'sheti', 'जमीन', 'शेती', 'एकर', 'एकड़', 'भूमि', 'शेतजमीन', 'நிலம்'],
+    crop_value: ['crop', 'yield', 'harvest', 'produce', 'fasal', 'उत्पन्न', 'पीक', 'धान्य', 'फसल', 'விளைச்சல்']
+  };
+
+  let updatedCount = 0;
+  let updatedParts = [];
+  let pillsHtml = '';
+
+  if (domainObj && domainObj.fields) {
+    for (const f of domainObj.fields) {
+      const keywords = fieldKeyKeywords[f.key];
+      if (!keywords) continue;
+
+      const ext = extractNearbyNumber(lower, keywords);
+      if (ext) {
+        let val = ext.num;
+        if (f.key === 'ev_amount' && ext.rawUnit === 'crore') {
+          val = ext.rawNum;
+        }
+        if (f.min !== undefined && f.max !== undefined) {
+          val = Math.max(f.min, Math.min(f.max, val));
+        }
+
+        state[f.key] = val;
+        updatedCount++;
+        const fmtVal = f.fmt ? f.fmt(val) : val;
+        const fLabel = f.flabel || f.label || f.key;
+        updatedParts.push(`${fLabel}: ${fmtVal}`);
+        pillsHtml += `<span class="chat-param-pill">✓ ${fLabel}: ${fmtVal}</span>`;
+      }
     }
   }
 
-  // If a parameter and number were both detected
-  if (matchedKey && extracted) {
-    const domainObj = DOMAINS[targetDomain];
-    const f = domainObj?.fields.find(item => item.key === matchedKey);
-    if (f) {
-      let finalVal = extracted.num;
-      // In IBBI enterprise value is in Crores directly
-      if (f.key === 'ev_amount' && extracted.rawUnit === 'crore') {
-        finalVal = extracted.rawNum;
+  // Single parameter fallback if multi-scan missed (e.g. single number and general phrase)
+  if (updatedCount === 0) {
+    const extractedSingle = extractSpokenNumber(lower);
+    if (extractedSingle && domainObj && domainObj.fields) {
+      for (const f of domainObj.fields) {
+        const keywords = fieldKeyKeywords[f.key] || [];
+        const hasKeyword = keywords.some(kw => lower.includes(kw));
+        if (hasKeyword) {
+          let val = extractedSingle.num;
+          if (f.key === 'ev_amount' && extractedSingle.rawUnit === 'crore') {
+            val = extractedSingle.rawNum;
+          }
+          if (f.min !== undefined && f.max !== undefined) {
+            val = Math.max(f.min, Math.min(f.max, val));
+          }
+
+          state[f.key] = val;
+          updatedCount++;
+          const fmtVal = f.fmt ? f.fmt(val) : val;
+          const fLabel = f.flabel || f.label || f.key;
+          updatedParts.push(`${fLabel}: ${fmtVal}`);
+          pillsHtml += `<span class="chat-param-pill">✓ ${fLabel}: ${fmtVal}</span>`;
+          break;
+        }
       }
-      if (f.min !== undefined && f.max !== undefined) {
-        finalVal = Math.max(f.min, Math.min(f.max, finalVal));
-      }
-
-      state[matchedKey] = finalVal;
-      buildFields();
-      renderCert();
-
-      const formattedVal = f.fmt ? f.fmt(finalVal) : finalVal;
-      const successMsg = domainSwitched
-        ? `✓ Switched to ${domainObj.name} & set ${f.flabel} to ${formattedVal}`
-        : `✓ Set ${f.flabel} to ${formattedVal}`;
-
-      if (banner) banner.classList.add('success-flash');
-      if (statusText) statusText.textContent = successMsg;
-      showVoiceFeedbackToast(successMsg);
-      return true;
     }
   }
 
-  // If only sector was switched
-  if (domainSwitched) {
-    const domainObj = DOMAINS[targetDomain];
-    const msg = `🎯 Switched to ${domainObj.name} (${domainObj.fullName})`;
+  if (updatedCount > 0 || domainSwitched) {
+    buildFields();
+    renderCert().then(() => highlightAttributionBars());
+
+    const successMsg = domainSwitched && updatedCount > 0
+      ? `Switched to ${domainObj.name} and updated ${updatedParts.join(', ')}`
+      : (updatedCount > 0 ? `Updated ${updatedParts.join(', ')}` : `Switched to ${domainObj.name}`);
+
     if (banner) banner.classList.add('success-flash');
-    if (statusText) statusText.textContent = msg;
-    showVoiceFeedbackToast(msg);
+    if (statusText) statusText.textContent = `✓ ${successMsg}`;
+    showVoiceFeedbackToast(`✓ ${successMsg}`);
+
+    if (fromChat) {
+      appendChatMessage('ai', `✓ ${successMsg}. Live Shapley attribution bars updated on the right.`, pillsHtml);
+    }
     return true;
+  }
+
+  if (fromChat) {
+    appendChatMessage('ai', `I couldn't detect specific profile values in "${rawText}". Try typing e.g. "CIBIL 780, salary 50000, loan 2 lakh" or click one of the suggestions above.`);
   }
 
   return false;
 }
+
 
 
 

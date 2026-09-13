@@ -120,6 +120,47 @@
 
         <div class="presets" id="presets"></div>
         <div id="fields"></div>
+
+        <!-- AI Copilot & Voice/Text Chat Window in Empty Space -->
+        <div class="ai-copilot-card" id="ai-copilot-card">
+          <div class="ai-copilot-header">
+            <div class="ai-copilot-title">
+              <span class="ai-copilot-sparkle">🤖</span>
+              <span>AI Underwriting Copilot</span>
+              <span class="ai-copilot-badge">Voice & Text</span>
+            </div>
+            <button type="button" class="chat-btn-clear" id="btn-chat-clear" title="Clear chat history">Clear</button>
+          </div>
+
+          <!-- Quick Suggestion Chips -->
+          <div class="chat-suggestions" id="chat-suggestions">
+            <button type="button" class="chat-chip" data-query="My CIBIL is 780, salary 50000 and I need a loan of 2 lakhs">💬 CIBIL 780, 50k salary, 2L loan</button>
+            <button type="button" class="chat-chip" data-query="Switch to SEBI with 10 lakh net worth and high risk tolerance">📈 SEBI: 10L Net Worth</button>
+            <button type="button" class="chat-chip" data-query="Policy vintage 5 years and claim 2 lakh in IRDAI">🛡️ IRDAI: 5 Yrs Vintage, 2L Claim</button>
+            <button type="button" class="chat-chip" data-query="Calculate Aumann-Shapley explanations">⚡ Compute Explanations</button>
+          </div>
+
+          <!-- Chat Messages Container -->
+          <div class="ai-chat-messages" id="chat-messages">
+            <div class="chat-bubble chat-bubble-ai">
+              <div class="chat-bubble-avatar">🤖</div>
+              <div class="chat-bubble-body">
+                <p>Hello! I am your explainable underwriting AI copilot. You can <b>send a text</b> or <b>record a voice note</b> describing your profile (e.g. <i>"CIBIL score 780, income 50000, loan 200000"</i> or in Hindi, Marathi, etc.). I will analyze it via AI and update the attribution bars on the right in real time.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Input Bar -->
+          <form class="ai-chat-input-bar" id="chat-form" onsubmit="return false;">
+            <button type="button" class="chat-mic-btn" id="chat-mic-btn" title="Click to speak (Voice Note)">
+              <span class="chat-mic-icon">🎙️</span>
+            </button>
+            <input type="text" id="chat-input" class="chat-input-field" placeholder="Type your profile or query (e.g. 'loan 2 lakh, cibil 780')..." autocomplete="off" />
+            <button type="submit" class="chat-send-btn" id="chat-send-btn" title="Send message">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
+            </button>
+          </form>
+        </div>
       </div>
 
       <div class="cert-wrap">
