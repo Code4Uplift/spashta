@@ -476,8 +476,19 @@ async function processSpokenUtterance(fullUtterance, source = 'voice') {
   lastProcessedUtterance = fullUtterance;
   lastProcessedTime = now;
 
-  // Add user bubble and thinking bubble into chat
+  // Add user bubble into chat
   appendChatMessage('user', fullUtterance);
+
+  // 1. Optimistic Local Evaluation (Instant Response in < 10ms)
+  // Evaluates common commands, domain switches, and parameter updates immediately
+  // without blocking on network latency or backend cold starts.
+  const handledLocally = parseAndApplySpokenInput(fullUtterance, true);
+  if (handledLocally) {
+    console.log('[Copilot] Utterance successfully resolved via instant local engine:', fullUtterance);
+    return;
+  }
+
+  // 2. If local heuristic did not match, query backend AI
   appendChatThinking(source === 'voice' ? 'Transcribing & analyzing voice note...' : 'AI Copilot analyzing parameters...');
 
   const banner = document.getElementById('voice-status-banner');
@@ -515,11 +526,12 @@ async function processSpokenUtterance(fullUtterance, source = 'voice') {
       return;
     }
   } catch (err) {
-    console.warn('Voice-intent API call failed or timed out, falling back to local engine:', err);
+    console.warn('Voice-intent API call failed or timed out:', err);
   }
 
-  // Graceful fallback to client-side heuristic engine
-  parseAndApplySpokenInput(fullUtterance, true);
+  // 3. Fallback when neither local nor backend could extract parameters
+  removeChatThinking();
+  appendChatMessage('ai', `I couldn't detect specific profile values in "${fullUtterance}". Try typing e.g. "CIBIL 780, salary 50000, loan 2 lakh" or click one of the suggestions above.`);
 }
 
 async function applyVoiceIntentResult(data, rawUtterance) {
@@ -900,10 +912,6 @@ function parseAndApplySpokenInput(rawText, fromChat = false) {
       appendChatMessage('ai', `✓ ${successMsg}. Live Shapley attribution bars updated on the right.`, pillsHtml);
     }
     return true;
-  }
-
-  if (fromChat) {
-    appendChatMessage('ai', `I couldn't detect specific profile values in "${rawText}". Try typing e.g. "CIBIL 780, salary 50000, loan 2 lakh" or click one of the suggestions above.`);
   }
 
   return false;
@@ -1512,11 +1520,9 @@ async function renderCert() {
         </div>
       </div>
       <div class="factors-axis-ruler">
-        <span>-Max Risk</span>
         <span>← Decreases Score</span>
-        <span class="axis-center-mark">0 (Baseline)</span>
+        <span class="axis-center-mark">Baseline 0</span>
         <span>Increases Score →</span>
-        <span>+Max Merit</span>
       </div>
       <div class="factors-list">
         ${factorsHtml}

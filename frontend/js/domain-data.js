@@ -52,7 +52,7 @@ const DOMAINS = {
       {
         key: 'loan_amount',
         label: 'Requested Loan Amount (₹)',
-        flabel: 'Requested Loan Amount',
+        flabel: 'Loan Quantum',
         icon: '💵', min: 10000, max: 2500000, step: 10000, base: 500000, coef: -0.0000008,
         fmt: (v) => `₹${Number(v).toLocaleString('en-IN')}`,
         help: 'Principal loan quantum requested by the applicant. Higher loan amounts elevate lender exposure risk, requiring stronger income and credit backing.'
@@ -76,7 +76,7 @@ const DOMAINS = {
       {
         key: 'delinquency',
         label: 'Past 90-Day DPD (Delinquency)',
-        flabel: 'Past 90D Delinquencies',
+        flabel: 'Delinquency (90D)',
         icon: '⚠️', type: 'select', base: 0, coef: -1.0,
         options: [
           { v: 0, label: '0 Times (Clean Record)' },
@@ -88,7 +88,7 @@ const DOMAINS = {
       {
         key: 'emp_status',
         label: 'Employment Type',
-        flabel: 'Employment Category',
+        flabel: 'Employment Type',
         icon: '💼', type: 'select', base: 1, coef: 0.4,
         options: [
           { v: 2, label: 'Government / PSU Employee' },
@@ -139,21 +139,21 @@ const DOMAINS = {
       {
         key: 'network',
         label: 'Network Hospital / Garage',
-        flabel: 'Network Facility Status',
+        flabel: 'Network Hospital',
         icon: '🏥', type: 'toggle', base: 1, coef: 0.9,
         help: 'Indicates whether treatment is at an IRDAI-empanelled cashless hospital or garage. Turn ON (1) if admitted to a network cashless hospital; turn OFF (0) if seeking reimbursement at an unlisted facility.'
       },
       {
         key: 'pre_existing',
         label: 'Pre-existing Disease Declared',
-        flabel: 'Pre-existing Condition Disclosure',
+        flabel: 'Declared Disease',
         icon: '📋', type: 'toggle', base: 1, coef: 1.6,
         help: 'Discloses whether the applicant declared prior chronic medical conditions at inception. Turn ON (1) if declared transparently; turn OFF (0) if undisclosed.'
       },
       {
         key: 'fraud_score',
         label: 'Anomaly / Risk Index (%)',
-        flabel: 'Claim Anomaly Score',
+        flabel: 'Anomaly Risk',
         icon: '🔍', min: 0, max: 100, step: 5, base: 15, coef: -0.062,
         fmt: (v) => `${v}%`,
         help: 'Algorithmic anomaly score flagging suspicious billing patterns or duplicate claims. Lower scores (<20%) reflect clean clinical adjudication.'

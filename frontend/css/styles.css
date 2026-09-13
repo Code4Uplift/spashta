@@ -393,6 +393,8 @@ select.field-select {
 .cert-wrap {
   position: sticky;
   top: 20px;
+  max-height: none !important;
+  overflow: visible !important;
   border-radius: var(--radius-lg);
 }
 
@@ -659,17 +661,17 @@ select.field-select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
   color: #94A3B8;
-  padding: 0 4px;
+  padding: 0 8px;
   margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
 .axis-center-mark {
   color: #475569;
   font-weight: 800;
+  text-align: center;
 }
 
 .factors-list {
@@ -706,8 +708,8 @@ select.field-select {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 140px;
-  min-width: 140px;
+  width: 155px;
+  min-width: 155px;
 }
 .factor-row-icon {
   font-size: 13px;
@@ -715,7 +717,7 @@ select.field-select {
   flex-shrink: 0;
 }
 .factor-row-name {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   color: #1E293B;
   white-space: nowrap;

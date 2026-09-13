@@ -70,7 +70,7 @@ DOMAINS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "loan_amount",
                 "label": "Requested Loan Amount (₹)",
-                "flabel": "Requested Loan Amount",
+                "flabel": "Loan Quantum",
                 "min": 10000.0, "max": 2500000.0, "step": 10000.0, "base": 500000.0, "coef": -0.0000008, "type": "range"
             },
             {
@@ -88,14 +88,14 @@ DOMAINS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "delinquency",
                 "label": "Past 90-Day DPD (Delinquency)",
-                "flabel": "Past 90D Delinquencies",
+                "flabel": "Delinquency (90D)",
                 "base": 0.0, "coef": -1.0, "type": "select",
                 "allowed_values": [0.0, 1.0, 2.0]
             },
             {
                 "key": "emp_status",
                 "label": "Employment Type",
-                "flabel": "Employment Category",
+                "flabel": "Employment Type",
                 "base": 1.0, "coef": 0.4, "type": "select",
                 "allowed_values": [2.0, 1.0, 0.5, -0.5]
             }
@@ -130,21 +130,19 @@ DOMAINS: Dict[str, Dict[str, Any]] = {
             {
                 "key": "network",
                 "label": "Network Hospital / Garage",
-                "flabel": "Network Facility Status",
-                "base": 1.0, "coef": 0.9, "type": "toggle",
-                "allowed_values": [0.0, 1.0]
+                "flabel": "Network Hospital",
+                "base": 1.0, "coef": 0.9, "type": "toggle"
             },
             {
                 "key": "pre_existing",
                 "label": "Pre-existing Disease Declared",
-                "flabel": "Pre-existing Condition Disclosure",
-                "base": 1.0, "coef": 1.6, "type": "toggle",
-                "allowed_values": [0.0, 1.0]
+                "flabel": "Declared Disease",
+                "base": 1.0, "coef": 1.6, "type": "toggle"
             },
             {
                 "key": "fraud_score",
                 "label": "Anomaly / Risk Index (%)",
-                "flabel": "Claim Anomaly Score",
+                "flabel": "Anomaly Risk",
                 "min": 0.0, "max": 100.0, "step": 5.0, "base": 15.0, "coef": -0.062, "type": "range"
             }
         ]
