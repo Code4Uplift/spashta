@@ -394,8 +394,8 @@ async def compute_score(request: ScoreRequest):
 async def translate_text(request: TranslateRequest):
     """
     Public endpoint: Translates text across 22 Indian languages.
-    Proxies to Google GTX and MyMemory APIs server-side with an in-memory cache to prevent
-    client-side CORS issues and browser rate-limiting.
+    For long texts (>400 chars), uses Gemini 1.5 Flash or sentence-chunking.
+    Proxies to Google GTX and MyMemory APIs server-side with an in-memory cache.
     """
     source_lang = request.source_lang.lower().strip()
     target_lang = request.target_lang.lower().strip()
@@ -426,6 +426,64 @@ async def translate_text(request: TranslateRequest):
             target_lang=target_lang,
             cached=True
         )
+
+    # For long texts (audio summaries, paragraphs), use Gemini or sentence chunking
+    if len(clean_text) > 400:
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        if gemini_key:
+            try:
+                target_lang_name = LANGUAGE_NAMES.get(target_lang, target_lang)
+                prompt = (
+                    f"You are a professional financial and regulatory translator specializing in Indian languages.\n"
+                    f"Translate the following text from English to fluent, natural {target_lang_name} ({target_lang}).\n"
+                    f"Maintain financial terms like CIBIL, FOIR, DTI, PMFBY, IRDAI, SEBI, RBI, NPS, KCC as-is.\n"
+                    f"Return ONLY the translated text, nothing else.\n\n"
+                    f"Text to translate:\n{clean_text}"
+                )
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.1}
+                }
+                async with httpx.AsyncClient(timeout=15.0) as gclient:
+                    res = await gclient.post(url, json=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        candidates = data.get("candidates", [])
+                        if candidates and "content" in candidates[0]:
+                            parts = candidates[0]["content"].get("parts", [])
+                            if parts and "text" in parts[0]:
+                                gemini_result = parts[0]["text"].strip()
+                                if gemini_result and gemini_result != clean_text:
+                                    _translation_cache[cache_key] = gemini_result
+                                    return TranslateResponse(
+                                        translated_text=gemini_result,
+                                        source_lang=source_lang,
+                                        target_lang=target_lang,
+                                        cached=False
+                                    )
+            except Exception as ge:
+                print(f"⚠️ Gemini long-text translation failed: {ge}")
+
+        # Sentence-chunking fallback for long texts without Gemini
+        sentences = re.split(r'(?<=[.!?।])\s+', clean_text)
+        translated_parts = []
+        async with httpx.AsyncClient(timeout=8.0, headers=HTTP_HEADERS) as client:
+            for sent in sentences:
+                sent = sent.strip()
+                if not sent:
+                    continue
+                t = await _translate_single_text(sent, source_lang, target_lang, client)
+                translated_parts.append(t)
+        result = " ".join(translated_parts).strip()
+        if result and result != clean_text:
+            _translation_cache[cache_key] = result
+            return TranslateResponse(
+                translated_text=result,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                cached=False
+            )
 
     async with httpx.AsyncClient(timeout=6.0, headers=HTTP_HEADERS) as client:
         res = await _translate_single_text(clean_text, source_lang, target_lang, client)

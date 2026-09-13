@@ -1725,14 +1725,14 @@ async function renderCert() {
   const voiceStopBtn = document.getElementById('voice-stop-btn');
 
   if (voicePlayBtn) {
-    voicePlayBtn.addEventListener('click', () => {
+    voicePlayBtn.addEventListener('click', async () => {
       const textToSpeak = decodeURIComponent(voicePlayBtn.dataset.text);
       if (translateService.isPausedAudio) {
         translateService.resumeAudio();
       } else if (translateService.isPlayingAudio) {
         translateService.stopAudio();
       } else {
-        translateService.speakText(textToSpeak, currentLang);
+        await translateService.speakText(textToSpeak, currentLang);
       }
     });
   }
@@ -1786,6 +1786,10 @@ function initVoiceControls() {
       if (stopBtn) stopBtn.style.display = 'inline-flex';
       if (icon) icon.textContent = '🔊';
       if (text) text.textContent = 'Playing Advisory...';
+    } else if (audioState === 'translating') {
+      if (waves) waves.classList.add('active');
+      if (icon) icon.textContent = '⏳';
+      if (text) text.textContent = 'Translating voice advisory...';
     } else if (audioState === 'paused') {
       if (waves) waves.classList.remove('active');
       if (pauseBtn) pauseBtn.style.display = 'none';

@@ -538,15 +538,46 @@ class InstantTranslateService {
     let targetLang = lang || 'en';
     let textToSpeak = text;
 
-    // Safety: If target language is Indic, but input text contains English words, translate it first!
-    if (targetLang !== 'en' && /[a-zA-Z]{4,}/.test(textToSpeak)) {
+    // Detect if text is still in English when target lang is non-English.
+    // Use Latin character ratio: if >20% of alpha chars are Latin, text is not Indic.
+    const needsTranslation = (tgt, src) => {
+      if (tgt === 'en') return false;
+      const alpha = (src.match(/[a-zA-Z\u0900-\u097F\u0980-\u09FF\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F]/g) || []).length;
+      if (alpha === 0) return false;
+      const latin = (src.match(/[a-zA-Z]/g) || []).length;
+      return (latin / alpha) > 0.25; // >25% Latin in non-English mode → needs translation
+    };
+
+    if (needsTranslation(targetLang, textToSpeak)) {
+      // Signal loading state to UI
+      if (this.onAudioStateChange) this.onAudioStateChange({ state: 'translating' });
       try {
-        const trans = await this.translateText(textToSpeak, 'en', targetLang);
-        if (trans && trans.trim()) {
-          textToSpeak = trans.trim();
+        // Try backend proxy first for long text (most reliable for paragraphs)
+        let translated = null;
+        try {
+          const resp = await fetch(`${SPASHTA_API_URL}/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: textToSpeak, source_lang: 'en', target_lang: targetLang })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data?.translated_text && data.translated_text !== textToSpeak) {
+              translated = data.translated_text.trim();
+            }
+          }
+        } catch (_) { /* backend not reachable, try browser APIs */ }
+
+        // Fallback: browser-side translation chain
+        if (!translated) {
+          translated = await this.translateText(textToSpeak, 'en', targetLang);
+        }
+
+        if (translated && translated.trim() && translated.trim() !== textToSpeak) {
+          textToSpeak = translated.trim();
         }
       } catch (err) {
-        console.warn('Pre-TTS Indic translation fallback:', err);
+        console.warn('Pre-TTS translation failed, will speak original:', err);
       }
     }
 
