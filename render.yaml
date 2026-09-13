@@ -16,4 +16,4 @@ services:
       - key: API_KEY
         sync: false
       - key: ALLOWED_ORIGINS
-        value: https://spashta.vercel.app,http://localhost:3000,http://127.0.0.1:3000
+        value: https://spashtaa.vercel.app,http://localhost:3000,http://127.0.0.1:3000
