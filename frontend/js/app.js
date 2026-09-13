@@ -1381,31 +1381,18 @@ async function renderCert() {
     const pct = Math.min(50, (Math.abs(r.val) / maxAbs) * 50);
     const isPos = r.val >= 0;
     const cls = isPos ? 'pos' : 'neg';
-    const arrow = isPos ? '↑' : '↓';
     const sign = isPos ? '+' : '';
     const formattedVal = `${sign}${r.val.toFixed(3)}`;
-    const driverLabel = isPos ? 'Positive Driver' : 'Risk Factor';
 
     return `
-      <div class="factor-row ${cls}" title="${r.name}: ${formattedVal} (${driverLabel})">
-        <div class="factor-row-left">
-          <span class="factor-row-icon">${r.icon}</span>
-          <span class="factor-row-name">${r.name}</span>
+      <div class="factor" id="factor-${r.name.replace(/[^a-zA-Z0-9]/g, '-')}">
+        <div class="factor-top">
+          <span class="fname">${r.icon} ${r.name}</span>
+          <span class="fval ${cls}">${formattedVal}</span>
         </div>
-        <div class="factor-row-mid">
-          <div class="factor-row-track">
-            <div class="factor-row-center"></div>
-            ${isPos 
-              ? `<div class="factor-row-fill pos" style="left: 50%; width: ${pct}%;"></div>`
-              : `<div class="factor-row-fill neg" style="right: 50%; width: ${pct}%;"></div>`
-            }
-          </div>
-        </div>
-        <div class="factor-row-right">
-          <div class="factor-row-val ${cls}">
-            <span>${arrow}</span>
-            <span>${formattedVal}</span>
-          </div>
+        <div class="factor-bar">
+          <div class="center"></div>
+          <div class="bar-fill ${cls}" style="${isPos ? `left: 50%; width: ${pct}%;` : `right: 50%; width: ${pct}%;`}"></div>
         </div>
       </div>`;
   }).join('');
@@ -1509,20 +1496,12 @@ async function renderCert() {
 
     <div class="factors-section">
       <div class="factors-header">
-        <div class="factors-header-left">
-          <div class="factors-label">Visual Shapley Attribution Weights</div>
-          <div class="factors-subtext">Aumann-Shapley Marginal Contributions (Sum = Score - Baseline)</div>
-        </div>
+        <div class="factors-label">Visual Shapley Attribution Weights</div>
         <div class="factors-legend">
           <span class="legend-item legend-neg"><span class="legend-dot neg"></span> Lowers Approval</span>
           <span class="legend-divider">|</span>
           <span class="legend-item legend-pos"><span class="legend-dot pos"></span> Boosts Approval</span>
         </div>
-      </div>
-      <div class="factors-axis-ruler">
-        <span>← Decreases Score</span>
-        <span class="axis-center-mark">Baseline 0</span>
-        <span>Increases Score →</span>
       </div>
       <div class="factors-list">
         ${factorsHtml}

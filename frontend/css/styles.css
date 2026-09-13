@@ -347,18 +347,18 @@ header.top {
 
 @keyframes pulseDot { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(1.3); opacity: 1; } }
 
-.presets { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.presets { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
 .preset-btn {
-  font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--panel-border);
+  font-size: 11.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--panel-border);
   background: var(--field-bg); color: var(--text-dark); cursor: pointer; font-family: inherit;
-  transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 5px;
 }
 .preset-btn:hover { border-color: var(--secondary-blue); color: var(--secondary-blue); background: var(--card-bg); }
 
-.field { margin-bottom: 18px; background: var(--field-bg); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--panel-border); }
-.field-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 10px; }
-.field-row label { font-size: 13.5px; font-weight: 600; color: var(--primary-navy); display: flex; align-items: center; gap: 8px; }
-.field-row .val { font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; color: var(--secondary-blue); background: rgba(37, 99, 235, 0.08); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(37, 99, 235, 0.15); }
+.field { margin-bottom: 10px; background: var(--field-bg); padding: 11px 14px; border-radius: var(--radius-md); border: 1px solid var(--panel-border); }
+.field-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
+.field-row label { font-size: 13px; font-weight: 600; color: var(--primary-navy); display: flex; align-items: center; gap: 7px; }
+.field-row .val { font-family: "JetBrains Mono", monospace; font-size: 12.5px; font-weight: 600; color: var(--secondary-blue); background: rgba(37, 99, 235, 0.08); padding: 2px 7px; border-radius: 4px; border: 1px solid rgba(37, 99, 235, 0.15); }
 
 input[type=range] {
   width: 100%; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px;
@@ -392,9 +392,7 @@ select.field-select {
 
 .cert-wrap {
   position: sticky;
-  top: 20px;
-  max-height: none !important;
-  overflow: visible !important;
+  top: 76px;
   border-radius: var(--radius-lg);
 }
 
@@ -404,16 +402,8 @@ select.field-select {
   border-radius: var(--radius-lg);
   border: 1.5px solid var(--panel-border);
   box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08);
-  padding: 24px;
+  padding: 22px;
   position: relative;
-}
-.cert:before {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border: 1px dashed rgba(203, 213, 225, 0.7);
-  border-radius: calc(var(--radius-lg) - 4px);
-  pointer-events: none;
 }
 .cert-head {
   display: flex;
@@ -657,156 +647,89 @@ select.field-select {
 .legend-dot.pos { background: #10B981; }
 .legend-divider { color: #CBD5E1; font-weight: 400; }
 
-.factors-axis-ruler {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  color: #94A3B8;
-  padding: 0 8px;
-  margin-bottom: 6px;
-  letter-spacing: 0.02em;
-}
-.axis-center-mark {
-  color: #475569;
-  font-weight: 800;
-  text-align: center;
-}
-
 .factors-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
 }
 
-/* Compact Sleek Horizontal Divergent Attribution Rows */
-.factor-row {
+.factor {
+  background: transparent;
+}
+.factor-top {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 5px 10px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  position: relative;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
-.factor-row:hover {
-  background: #FFFFFF;
-  border-color: #CBD5E1;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
-}
-.factor-row.pos {
-  border-left: 3px solid #10B981;
-}
-.factor-row.neg {
-  border-left: 3px solid #EF4444;
-}
-
-.factor-row-left {
+.factor-top .fname {
+  color: var(--primary-navy);
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 155px;
-  min-width: 155px;
-}
-.factor-row-icon {
-  font-size: 13px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.factor-row-name {
-  font-size: 11px;
   font-weight: 700;
-  color: #1E293B;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-
-.factor-row-mid {
-  flex: 1;
-  position: relative;
-  min-width: 100px;
-}
-.factor-row-track {
-  height: 8px;
-  background: #E2E8F0;
-  border-radius: 999px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
-}
-.factor-row-center {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #94A3B8;
-  transform: translateX(-50%);
-  z-index: 2;
-  opacity: 0.85;
-}
-.factor-row-fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.factor-row-fill.pos {
-  background: linear-gradient(90deg, #10B981 0%, #059669 100%);
-  border-radius: 0 999px 999px 0;
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
-}
-.factor-row-fill.neg {
-  background: linear-gradient(270deg, #EF4444 0%, #DC2626 100%);
-  border-radius: 999px 0 0 999px;
-  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
-}
-
-.factor-row-right {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  width: 66px;
-  min-width: 66px;
-}
-.factor-row-val {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+.factor-top .fval {
   font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1px 7px;
+  border-radius: 5px;
 }
-.factor-row-val.pos {
+.factor-top .fval.pos {
   color: #047857;
   background: #ECFDF5;
   border: 1px solid #A7F3D0;
 }
-.factor-row-val.neg {
+.factor-top .fval.neg {
   color: #B91C1C;
   background: #FEF2F2;
   border: 1px solid #FECACA;
 }
 
-/* Gentle pulse on updated factors */
-.factor-row.bar-highlight-pulse, .factor-card.bar-highlight-pulse {
-  animation: factorCardPulse 1.2s ease-out;
+.factor-bar {
+  height: 8px;
+  background: #E2E8F0;
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
 }
-@keyframes factorCardPulse {
-  0% {
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35);
-    transform: scale(1.01);
-  }
-  100% {
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-    transform: scale(1);
-  }
+.factor-bar .center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #64748B;
+  opacity: 0.5;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+.factor-bar .bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.factor-bar .bar-fill.pos {
+  background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+  left: 50%;
+}
+.factor-bar .bar-fill.neg {
+  background: linear-gradient(270deg, #EF4444 0%, #DC2626 100%);
+  right: 50%;
+}
+
+/* Gentle pulse on updated factors */
+.factor.bar-highlight-pulse, .factor-row.bar-highlight-pulse, .factor-card.bar-highlight-pulse {
+  animation: factorBarPulse 1.2s ease-out;
+}
+@keyframes factorBarPulse {
+  0% { transform: scale(1.02); filter: brightness(1.15); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 /* Collapsible Compact Audit Findings Accordion */
@@ -1162,11 +1085,11 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
 
 /* AI Underwriting Copilot & Voice Chat Window */
 .ai-copilot-card {
-  margin-top: 24px;
+  margin-top: 14px;
   background: #FFFFFF;
   border: 1.5px solid #E2E8F0;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1174,19 +1097,19 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
 }
 .ai-copilot-card:focus-within {
   border-color: #93C5FD;
-  box-shadow: 0 8px 24px -4px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 6px 20px -4px rgba(37, 99, 235, 0.12);
 }
 
 .ai-copilot-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 16px;
+  padding: 8px 14px;
   background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
   border-bottom: 1px solid #E2E8F0;
 }
 .ai-copilot-title {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--primary-navy);
   display: flex;
@@ -1194,26 +1117,26 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
   gap: 6px;
 }
 .ai-copilot-sparkle {
-  font-size: 15px;
+  font-size: 14px;
 }
 .ai-copilot-badge {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   background: rgba(37, 99, 235, 0.1);
   color: #2563EB;
-  padding: 2px 7px;
+  padding: 2px 6px;
   border-radius: 999px;
 }
 .chat-btn-clear {
   background: transparent;
   border: none;
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 3px 6px;
+  border-radius: 4px;
   transition: all 0.2s;
 }
 .chat-btn-clear:hover {
@@ -1223,8 +1146,8 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
 
 .chat-suggestions {
   display: flex;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 5px;
+  padding: 6px 10px;
   overflow-x: auto;
   background: #FAF5FF;
   border-bottom: 1px solid #F3E8FF;
@@ -1234,9 +1157,9 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
   display: none;
 }
 .chat-chip {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 3px 9px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: #FFFFFF;
   border: 1px solid #DDD6FE;
@@ -1253,13 +1176,13 @@ footer.site .note { max-width: 85ch; margin-bottom: 12px; line-height: 1.6; }
 }
 
 .ai-chat-messages {
-  padding: 14px;
-  max-height: 220px;
-  min-height: 120px;
+  padding: 10px 12px;
+  max-height: 140px;
+  min-height: 85px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   background: #FAFAFA;
 }
 .chat-bubble {
