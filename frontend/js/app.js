@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initLanguageSelector();
   initDomainTabs();
   initVoiceControls();
-  initCoeKeyManager();
   initVerifyModal();
   initSpeechRecognition();
   initPrivacyShield();
@@ -303,70 +302,6 @@ function triggerVoiceDictate() {
 let lastProcessedUtterance = '';
 let lastProcessedTime = 0;
 
-const VOICE_PARSER_SYSTEM_PROMPT_FRONTEND = `You are the Cognitive Speech & Dialect Unscrambler AI for SPASHTA, India's Explainable AI underwriting platform.
-Real human speech from Indian users is messy, colloquial, full of filler words, disordered/inverted phrasing, dialect mixtures (Hinglish, Tanglish, Marathlinglish, Gujaranglish, casual slang), and mid-sentence self-corrections.
-
-YOUR PRIMARY DUTY IS TO REASON, UNTANGLE, AND UNSCRAMBLE THE USER'S INTENDED MEANING:
-1. DE-NOISE & UNSCRAMBLE:
-   - Filter out all conversational filler words and social padding ("arre", "bhai", "yaar", "sun na", "dekho", "actually", "matlab", "basically", "so like", "karna hai", "chahiye tha", "maan lo", "please check", "batao", "bhi").
-   - Untangle scrambled, inverted, and split phrases:
-     * "do lakh ka loan chahiye credit score mera 780 hai aur income 50000" -> loan_amount: 200000, score: 780, income: 50000
-     * "income meri paanch lakh hai sebi me" -> domain: sebi, income: 500000
-     * "bhai suno cibil score agar dekhe to 750 hai aamdani tees hazaar" -> score: 750, income: 30000
-     * "mera credit score saat sau hai aur aamdani 700 hai" -> score: 700, income: 700
-     * "hospital jo hai na cashless wala wo nahi hai mere pass claim do lakh ka hai" -> domain: irdai, network: 0, amount: 200000
-     * "kisan hu fasal do lakh zameen 10 acre" -> domain: nabard, crop_value: 200000, land_holding: 10
-     * "pension ka bata umar meri 45 saal hai har mahine 5000 jama karta hu" -> domain: pfrda, age: 45, monthly_contribution: 5000
-     * "enterprise value 500 crore liquidation coverage 120" -> domain: ibbi, ev_amount: 500, liquidation_coverage: 120
-
-2. RESOLVE CORRECTIONS (User changing their mind):
-   - If the user corrects themselves mid-sentence, pick the FINAL corrected value:
-     * "cibil 700 nahi 780 hai" -> score: 780
-     * "loan 5 lakh actually 2 lakh chahiye" -> loan_amount: 200000
-     * "income 50000 wait make it 70000" -> income: 70000
-
-3. MULTI-LINGUAL INDIC NUMBER TRANSLATION:
-   - Convert spoken number words in any language into digits:
-     * "saat sau" / "सात सौ" / "700" / "shambhar" -> 700
-     * "paanch lakh" / "पाच लाख" / "5 lakhs" -> 500000
-     * "do lakh" / "don lakh" / "दोन लाख" -> 200000
-     * "pachas hazaar" / "पन्नास हजार" / "50k" -> 50000
-     * "dedh lakh" -> 150000, "dhai lakh" -> 250000, "sawa lakh" -> 125000
-     * Direct numbers like "income 700" or "700 per month" -> 700 (microfinance allows income >= 500)
-
-4. TOGGLE CONTROLS (0 = Negation / OFF, 1 = Affirmative / ON):
-   - irdai "network" (Hospital/Garage): "hospital nahi hai", "no network hospital", "non-network", "illai", "nathi", "without hospital" -> 0. "cashless network hospital", "hospital hai" -> 1.
-   - irdai "pre_existing": "no disease", "clean health record", "bimari nahi hai", "bina kisi bimari ke", "illai" -> 0. "has pre-existing disease", "purani bimari hai" -> 1.
-   - nabard "irrigation_status": "no irrigation", "dryland", "rainfed", "pani nahi hai", "sukha" -> 0. "irrigation available", "canal", "borewell", "pani hai" -> 1.
-   - nabard "crop_insurance": "no insurance", "uninsured", "bima nahi hai" -> 0. "insured", "pmfby", "bima hai" -> 1.
-
-5. ALL PARAMETERS SIMULTANEOUSLY:
-   - Always extract ALL valid parameters mentioned in the sentence. Never drop or omit a parameter!
-
-6. SECTOR / DOMAIN RECOGNITION:
-   - "rbi": credit card, loan, CIBIL, credit score, debt, salary, monthly income
-   - "irdai": insurance, claim, policy vintage/tenure, network hospital, pre-existing disease
-   - "sebi": stocks, investments, annual net worth, risk tolerance, portfolio, horizon
-   - "pfrda": NPS, pension, retirement, age, monthly savings/contribution
-   - "ibbi": insolvency, bankruptcy, enterprise value (₹ Cr), liquidation coverage, timeline
-   - "nabard": kisan credit card, land holding (acres), crop yield, irrigation, crop insurance
-   * If no domain is mentioned, keep the user's current domain!
-
-7. ACTIONS:
-   - "compute": calculate, compute, hisab, ganna, spashtikaran
-   - "reset": reset, clear, pehle jaisa
-   - "speak": speak, listen, audio sunao, aika
-   - "stop_audio": stop, pause, shant, ruko
-   - "privacy": privacy, shield, dpdp
-
-OUTPUT FORMAT: Strictly return a JSON object with NO surrounding markdown or extra text:
-{
-  "domain": "rbi" | "irdai" | "sebi" | "pfrda" | "ibbi" | "nabard",
-  "action": null | "compute" | "reset" | "speak" | "stop_audio" | "privacy",
-  "parameters": { "<param_key>": <numeric_value> },
-  "feedback": "Natural English summary of what was unscrambled and updated"
-}`;
-
 async function processSpokenUtterance(fullUtterance) {
   const now = Date.now();
   if (fullUtterance === lastProcessedUtterance && (now - lastProcessedTime) < 2500) {
@@ -379,100 +314,20 @@ async function processSpokenUtterance(fullUtterance) {
   const statusText = document.getElementById('voice-status-text');
 
   if (statusText) {
-    statusText.textContent = `🧠 [Qwen3.6 CoE AI Thinking & Unscrambling...] "${fullUtterance}"`;
+    statusText.textContent = `🧠 [Thinking...] "${fullUtterance}"`;
   }
 
-  const clientKey = (localStorage.getItem('SPASHTA_COE_KEY') || '').trim();
-
-  // Strategy 1: Direct Browser Call to TCET CoE DGX Spark Gateway (Section 8 of TCET Guide)
-  if (clientKey) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-      const res = await fetch("https://ai.tcetcercd.in/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${clientKey}`
-        },
-        body: JSON.stringify({
-          model: "qwen3.6",
-          messages: [
-            { role: "system", content: VOICE_PARSER_SYSTEM_PROMPT_FRONTEND },
-            {
-              role: "user",
-              content: `Spoken user speech: "${fullUtterance}"\nCurrent active domain: "${currentDomain}"\nSpoken language hint: "${currentLang || 'en'}"`
-            }
-          ],
-          temperature: 0.1,
-          max_tokens: 2048,
-          chat_template_kwargs: {
-            enable_thinking: true,
-            reasoning_effort: "medium"
-          },
-          extra_body: {
-            chat_template_kwargs: {
-              enable_thinking: true,
-              reasoning_effort: "medium"
-            }
-          }
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        const msg = data.choices?.[0]?.message || {};
-        const rawContent = msg.content || '';
-        const reasoningContent = msg.reasoning_content || '';
-
-        // Strip <think>...</think> chain-of-thought tokens if present
-        const cleanContent = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-        const jsonCandidate = cleanContent || rawContent || reasoningContent;
-        const jsonMatch = jsonCandidate.match(/\{[\s\S]*\}/);
-        const jsonStr = jsonMatch ? jsonMatch[0] : jsonCandidate;
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          console.log('Direct CoE AI Thinking Result:', parsed);
-          applyVoiceIntentResult({
-            domain: parsed.domain || currentDomain,
-            action: parsed.action || null,
-            parameters: parsed.parameters || {},
-            feedback: parsed.feedback || `CoE AI unscrambled intent for ${(parsed.domain || currentDomain).toUpperCase()}`,
-            engine: 'tcet_coe_qwen3.6'
-          }, fullUtterance);
-          return;
-        } catch (e) {
-          console.warn('Failed to parse CoE AI JSON payload directly:', e, jsonStr);
-        }
-      } else {
-        console.warn('Direct CoE Gateway returned status:', res.status);
-      }
-    } catch (err) {
-      console.warn('Direct CoE Gateway fetch failed or timed out:', err);
-    }
-  }
-
-  // Strategy 2: Backend Proxy Call (/voice-intent) with forwarded X-CoE-AI-Key
   const apiUrl = window.SPASHTA_API_URL || 'http://localhost:8000';
+
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-    if (clientKey) {
-      headers['X-CoE-AI-Key'] = clientKey;
-    }
+    const timeoutId = setTimeout(() => controller.abort(), 14000);
 
     const response = await fetch(`${apiUrl}/voice-intent`, {
       method: 'POST',
-      headers: headers,
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         text: fullUtterance,
         current_domain: currentDomain,
@@ -490,10 +345,10 @@ async function processSpokenUtterance(fullUtterance) {
       return;
     }
   } catch (err) {
-    console.warn('Voice-intent API call failed or timed out, falling back to local unscrambler:', err);
+    console.warn('Voice-intent API call failed or timed out, falling back to local engine:', err);
   }
 
-  // Strategy 3: Local Semantic Proximity Unscrambler Fallback
+  // Graceful fallback to client-side heuristic engine
   parseAndApplySpokenInput(fullUtterance);
 }
 
@@ -501,7 +356,7 @@ function applyVoiceIntentResult(data, rawUtterance) {
   const banner = document.getElementById('voice-status-banner');
   const statusText = document.getElementById('voice-status-text');
   const isCoE = data.engine === 'tcet_coe_qwen3.6';
-  const enginePrefix = isCoE ? '✨ [Qwen3.6 CoE AI Thinking] ' : '✓ ';
+  const enginePrefix = isCoE ? '✨ [Qwen3.6 CoE AI] ' : '✓ ';
 
   // 1. Action execution
   if (data.action) {
@@ -628,7 +483,7 @@ function extractSpokenNumber(text) {
 
 const SPOKEN_DOMAIN_VOCAB = {
   sebi: ['sebi', 'stock', 'stocks', 'trading', 'trade', 'shares', 'investment', 'investments', 'wealth', 'portfolio', 'mutual fund', 'सेबी', 'शेयर', 'शेअर', 'बाजार', 'निवेश', 'गुंतवणूक', 'पोर्टफोलियो', 'பங்குகள்', 'முதலீடு', 'పెట్టుబడి', 'షేర్లు', 'বিনিয়োগ', 'ಸೆಬಿ'],
-  irdai: ['irdai', 'insurance', 'claim', 'claims', 'health', 'hospital', 'vintage', 'policy', 'आईआरडीएआई', 'इरडा', 'बीमा', 'विमा', 'क्लेम', 'दावा', 'पॉलिसी', 'कालावधी', 'மருத்துவம்', 'காப்பீடு', 'பாலிசி', 'పాలసీ', 'బీమా', 'দাবি', 'বীमा'],
+  irdai: ['irdai', 'insurance', 'claim', 'claims', 'health', 'hospital', 'vintage', 'policy', 'आईआरडीएआई', 'इरडा', 'बीमा', 'विमा', 'क्लेम', 'दावा', 'पॉलिसी', 'कालावधी', 'மருத்துவம்', 'காப்பீடு', 'பாலிசி', 'పాలసీ', 'బీమా', 'দাবি', 'বীমা'],
   rbi: ['rbi', 'reserve bank', 'credit', 'loan', 'loans', 'borrow', 'cibil', 'आरबीआई', 'रिजर्व बैंक', 'बैंक', 'बँक', 'लोन', 'कर्ज', 'ऋण', 'सिबिल', 'சிபில்', 'கடன்', 'రుణం', 'సిబిల్', 'ধার'],
   pfrda: ['pfrda', 'pension', 'retirement', 'nps', 'annuity', 'पीएफआरडीए', 'पेंशन', 'पेन्शन', 'निवृत्ती', 'निवृत्तीवेतन', 'एनपीएस', 'रिटायरमेंट', 'ஓய்வூதியம்', 'పెన్షన్', 'পেনশন'],
   ibbi: ['ibbi', 'insolvency', 'bankruptcy', 'liquidation', 'cirp', 'resolution', 'enterprise', 'आईबीबीआई', 'दिवालिया', 'दिवाळखोरी', 'परिसमापन', 'समाधान', 'कंपनी', 'கலைப்பு', 'దివాలా'],
@@ -645,41 +500,14 @@ function detectSpokenDomainInUtterance(text) {
   return null;
 }
 
-function _extractFuzzyParam(text, keywords) {
-  let norm = text;
-  for (const [w, val] of SPOKEN_NUMBER_WORDS) {
-    const pattern = new RegExp('(^|[^a-zA-Z0-9\u0900-\u097F])' + w + '(?=$|[^a-zA-Z0-9\u0900-\u097F])', 'gi');
-    norm = norm.replace(pattern, '$1' + val);
-  }
-
-  for (const kw of keywords) {
-    // Pattern 1: kw followed by up to 5 words then number
-    const p1 = new RegExp('\\b' + kw + '\\b(?:\\s+[\\w\u0900-\u097F]+){0,5}?\\s*(\\d+(?:\\.\\d+)?(?:\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)', 'i');
-    const m1 = norm.match(p1);
-    if (m1) {
-      const numObj = extractSpokenNumber(m1[1]);
-      if (numObj) return numObj.num;
-    }
-
-    // Pattern 2: number followed by up to 5 words then kw
-    const p2 = new RegExp('(\\d+(?:\\.\\d+)?(?:\\s*(?:crore|crores|cr|lakh|lakhs|lac|lacs|k|thousand|thousands|करोड़|कोटी|लाख|हजार|हज़ार))?)(?:\\s+[\\w\u0900-\u097F]+){0,5}?\\s*\\b' + kw + '\\b', 'i');
-    const m2 = norm.match(p2);
-    if (m2) {
-      const numObj = extractSpokenNumber(m2[1]);
-      if (numObj) return numObj.num;
-    }
-  }
-  return null;
-}
-
 function parseAndApplySpokenInput(rawText) {
   const lower = rawText.toLowerCase().trim();
   const banner = document.getElementById('voice-status-banner');
   const statusText = document.getElementById('voice-status-text');
 
-  console.log('SPASHTA Voice Command Received (Local Semantic Unscrambler):', lower);
+  console.log('SPASHTA Voice Command Received:', lower);
 
-  // 1. Actions
+  // 1. Check for Action Commands
   if (lower.includes('compute') || lower.includes('calculate') || lower.includes('explain') || lower.includes('स्पष्टीकरण') || lower.includes('गणना') || lower.includes('हिसाब') || lower.includes('कणक्कीடு')) {
     computeScore();
     if (banner) banner.classList.add('success-flash');
@@ -716,125 +544,114 @@ function parseAndApplySpokenInput(rawText) {
     return true;
   }
 
-  // 2. Domain Detection
+  // 2. Detect Domain Mention (e.g. "I want to check SEBI, I have 5 lakh rupees income")
   const detectedDomain = detectSpokenDomainInUtterance(lower);
   let domainSwitched = false;
-  let targetDomain = detectedDomain || currentDomain;
   if (detectedDomain && detectedDomain !== currentDomain) {
     switchDomain(detectedDomain);
     domainSwitched = true;
   }
 
-  // 3. Multi-parameter extraction
-  const extractedParams = {};
+  // 3. Extract Spoken Numbers and Multipliers
+  const extracted = extractSpokenNumber(lower);
+  let targetDomain = detectedDomain || currentDomain;
+  const d = DOMAINS[targetDomain];
+  let matchedKey = null;
 
-  // Toggles
-  if (lower.includes('hospital') || lower.includes('cashless') || lower.includes('अस्पताल') || lower.includes('रुग्णालय')) {
-    targetDomain = 'irdai';
-    const isNeg = ['not there', 'no hospital', 'no network', 'not available', 'non-network', 'नहीं है', 'नाही', 'illai', 'nathi', 'without'].some(w => lower.includes(w));
-    extractedParams['network'] = isNeg ? 0 : 1;
-  }
-  if (lower.includes('pre-existing') || lower.includes('pre existing') || lower.includes('disease') || lower.includes('बीमारी') || lower.includes('आजार')) {
-    targetDomain = 'irdai';
-    const isNeg = ['no disease', 'no pre-existing', 'not have', 'नहीं है', 'नाही', 'clean', 'without'].some(w => lower.includes(w));
-    extractedParams['pre_existing'] = isNeg ? 0 : 1;
-  }
-  if (lower.includes('irrigation') || lower.includes('सिंचाई') || lower.includes('सिंचन') || lower.includes('borewell')) {
-    targetDomain = 'nabard';
-    const isNeg = ['no irrigation', 'dryland', 'rainfed', 'सूखा', 'नहीं है', 'नाही', 'without'].some(w => lower.includes(w));
-    extractedParams['irrigation_status'] = isNeg ? 0 : 1;
-  }
-  if (lower.includes('crop insurance') || lower.includes('pmfby') || lower.includes('फसल बीमा') || lower.includes('पीक विमा')) {
-    targetDomain = 'nabard';
-    const isNeg = ['no insurance', 'uninsured', 'नहीं है', 'नाही', 'without'].some(w => lower.includes(w));
-    extractedParams['crop_insurance'] = isNeg ? 0 : 1;
-  }
-
-  // Numerical parameters
-  // Score (RBI) - handle self-correction e.g. "700 nahi 780"
-  const scoreCorr = lower.match(/(?:score|cibil|credit score)?.*?(\d{3})\s*(?:nahi|not|actually|but)\s*(\d{3})/i);
-  if (scoreCorr) {
-    const s = parseFloat(scoreCorr[2]);
-    if (s >= 300 && s <= 900) { extractedParams['score'] = s; targetDomain = 'rbi'; }
-  } else {
-    const s = _extractFuzzyParam(lower, ['score', 'cibil', 'credit score', 'सिबिल', 'स्कोर']);
-    if (s && s >= 300 && s <= 900) { extractedParams['score'] = s; targetDomain = 'rbi'; }
-  }
-
-  // Loan Amount (RBI)
-  const l = _extractFuzzyParam(lower, ['loan', 'borrow', 'debt', 'कर्ज', 'ऋण', 'लोन']);
-  if (l && l >= 1000) { extractedParams['loan_amount'] = l; targetDomain = 'rbi'; }
-
-  // Income (RBI or SEBI)
-  const inc = _extractFuzzyParam(lower, ['income', 'salary', 'earn', 'net worth', 'networth', 'wealth', 'पगार', 'वेतन', 'आय', 'कमाई', 'आमदनी', 'आवक']);
-  if (inc && inc >= 500) { extractedParams['income'] = inc; }
-
-  // Tenure / Vintage (IRDAI)
-  const vin = _extractFuzzyParam(lower, ['vintage', 'tenure', 'policy vintage', 'policy age', 'साल', 'वर्ष']);
-  if (vin && vin <= 20) { extractedParams['tenure'] = vin; targetDomain = 'irdai'; }
-
-  // Claim Amount (IRDAI)
-  const cl = _extractFuzzyParam(lower, ['claim', 'bill', 'दावा', 'दाव्याची', 'क्लेम', 'खर्च']);
-  if (cl && cl >= 1000) { extractedParams['amount'] = cl; targetDomain = 'irdai'; }
-
-  // Land Holding (NABARD)
-  const land = _extractFuzzyParam(lower, ['land', 'farmland', 'zameen', 'sheti', 'acre', 'acres', 'एकर', 'एकड़', 'एकड़', 'जमीन', 'शेती']);
-  if (land && land <= 50) { extractedParams['land_holding'] = land; targetDomain = 'nabard'; }
-
-  // Crop Value (NABARD)
-  const crop = _extractFuzzyParam(lower, ['crop', 'yield', 'harvest', 'produce', 'fasal', 'उत्पन्न', 'पीक', 'धान्य', 'फसल']);
-  if (crop && crop >= 1000) { extractedParams['crop_value'] = crop; targetDomain = 'nabard'; }
-
-  // Enterprise Value (IBBI)
-  const evMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:crore|crores|cr|करोड़)/i);
-  if (evMatch && (lower.includes('enterprise') || lower.includes('ev') || lower.includes('resolution') || targetDomain === 'ibbi')) {
-    extractedParams['ev_amount'] = parseFloat(evMatch[1]);
-    targetDomain = 'ibbi';
+  // Domain-specific field keyword mappings
+  if (targetDomain === 'sebi') {
+    if (lower.includes('income') || lower.includes('net worth') || lower.includes('networth') || lower.includes('wealth') || lower.includes('annual') || lower.includes('संपत्ति') || lower.includes('संपत्ती') || lower.includes('नेटवर्थ') || lower.includes('आय') || lower.includes('उत्पन्न') || lower.includes('कमाई') || lower.includes('சொத்து') || lower.includes('నికర విలువ')) matchedKey = 'income';
+    else if (lower.includes('risk') || lower.includes('tolerance') || lower.includes('appetite') || lower.includes('जोखिम') || lower.includes('जोखीम') || lower.includes('रिस्क')) matchedKey = 'risk_appetite';
+    else if (lower.includes('concentration') || lower.includes('exposure') || lower.includes('एकाग्रता') || lower.includes('एक्सपोजर') || lower.includes('वाटप')) matchedKey = 'concentration';
+    else if (lower.includes('horizon') || lower.includes('tenure') || lower.includes('holding') || lower.includes('कालावधी') || lower.includes('मुदत') || lower.includes('अवधि') || lower.includes('वर्ष')) matchedKey = 'horizon';
+    else if (lower.includes('category') || lower.includes('meter') || lower.includes('श्रेणी')) matchedKey = 'risk_category';
+  } else if (targetDomain === 'irdai') {
+    if (lower.includes('tenure') || lower.includes('vintage') || lower.includes('policy vintage') || lower.includes('policy age') || lower.includes('year') || lower.includes('years') || lower.includes('वर्ष') || lower.includes('साल') || lower.includes('वर्षे') || lower.includes('कालावधी') || lower.includes('मुदत') || lower.includes('பாலிசி காலம்') || lower.includes('కాలం')) matchedKey = 'tenure';
+    else if (lower.includes('claim') || lower.includes('bill') || lower.includes('amount') || lower.includes('दावा') || lower.includes('दाव्याची') || lower.includes('क्लेम') || lower.includes('रक्कम') || lower.includes('खर्च') || lower.includes('கோரிக்கை')) matchedKey = 'amount';
+    else if (lower.includes('network') || lower.includes('hospital') || lower.includes('cashless') || lower.includes('नेटवर्क') || lower.includes('कॅशलेस') || lower.includes('अस्पताल') || lower.includes('रुग्णालय')) matchedKey = 'network';
+    else if (lower.includes('pre-existing') || lower.includes('pre existing') || lower.includes('ped') || lower.includes('disease') || lower.includes('illness') || lower.includes('पुरानी बीमारी') || lower.includes('जुना आजार') || lower.includes('आजार') || lower.includes('रोग')) matchedKey = 'pre_existing';
+    else if (lower.includes('fraud') || lower.includes('anomaly') || lower.includes('suspicion') || lower.includes('धोखाधड़ी') || lower.includes('फ्रॉड') || lower.includes('संशय') || lower.includes('घोटाला') || lower.includes('जोखिम')) matchedKey = 'fraud_score';
+  } else if (targetDomain === 'rbi') {
+    if (lower.includes('cibil') || lower.includes('score') || lower.includes('credit score') || lower.includes('rating') || lower.includes('सिबिल') || lower.includes('क्रेडिट स्कोर') || lower.includes('स्कोर') || lower.includes('पत') || lower.includes('சிபில்')) matchedKey = 'score';
+    else if (lower.includes('loan') || lower.includes('borrow') || lower.includes('debt') || lower.includes('कर्ज') || lower.includes('ऋण') || lower.includes('लोन') || lower.includes('उधार') || lower.includes('கடன்')) matchedKey = 'loan_amount';
+    else if (lower.includes('income') || lower.includes('salary') || lower.includes('wage') || lower.includes('pay') || lower.includes('monthly') || lower.includes('stipend') || lower.includes('आय') || lower.includes('वेतन') || lower.includes('पगार') || lower.includes('कमाई') || lower.includes('आमदनी') || lower.includes('मासिक उत्पन्न') || lower.includes('तनख्वाह') || lower.includes('आवक') || lower.includes('दरमहा') || lower.includes('சம்பளம்')) matchedKey = 'income';
+    else if (lower.includes('foir') || lower.includes('obligation') || lower.includes('emi') || lower.includes('खर्च') || lower.includes('हप्ता') || lower.includes('देनदारी')) matchedKey = 'foir';
+    else if (lower.includes('delinquency') || lower.includes('dpd') || lower.includes('default') || lower.includes('delay') || lower.includes('late') || lower.includes('डिफ़ॉल्ट') || lower.includes('देरी') || lower.includes('थकीत') || lower.includes('उशीर')) matchedKey = 'delinquency';
+    else if (lower.includes('employment') || lower.includes('employee') || lower.includes('job') || lower.includes('corporate') || lower.includes('govt') || lower.includes('नौकरी') || lower.includes('रोजगार') || lower.includes('काम') || lower.includes('नोकरी')) matchedKey = 'emp_status';
+  } else if (targetDomain === 'pfrda') {
+    if (lower.includes('age') || lower.includes('investor age') || lower.includes('years old') || lower.includes('वय') || lower.includes('उम्र') || lower.includes('आयु') || lower.includes('वर्ष') || lower.includes('வயது') || lower.includes('వయస్సు')) matchedKey = 'age';
+    else if (lower.includes('contribution') || lower.includes('monthly contribution') || lower.includes('nps') || lower.includes('savings') || lower.includes('अंशदान') || lower.includes('मासिक अंशदान') || lower.includes('एनपीएस') || lower.includes('बचत') || lower.includes('हप्ता')) matchedKey = 'monthly_contribution';
+    else if (lower.includes('equity') || lower.includes('shares') || lower.includes('stock') || lower.includes('इक्विटी') || lower.includes('शेअर वाटप') || lower.includes('समभाग')) matchedKey = 'equity_allocation';
+    else if (lower.includes('pension target') || lower.includes('target pension') || lower.includes('pension') || lower.includes('पेन्शन') || lower.includes('पेंशन') || lower.includes('निवृत्तीवेतन') || lower.includes('ஓய்வூதியம்')) matchedKey = 'pension_target';
+    else if (lower.includes('corpus') || lower.includes('adequacy') || lower.includes('कॉर्पस') || lower.includes('संचित निधी') || lower.includes('फंड')) matchedKey = 'corpus_index';
+  } else if (targetDomain === 'ibbi') {
+    if (lower.includes('enterprise') || lower.includes('resolution value') || lower.includes('ev') || lower.includes('व्हॅल्यू') || lower.includes('एंटरप्राइझ व्हॅल्यू') || lower.includes('मूल्य') || lower.includes('रिजोल्यूशन वैल्यू') || lower.includes('संकल्प मूल्य')) matchedKey = 'ev_amount';
+    else if (lower.includes('liquidation') || lower.includes('coverage') || lower.includes('लिक्विडेशन') || lower.includes('परिसमापन मूल्य') || lower.includes('कव्हरेज')) matchedKey = 'liquidation_coverage';
+    else if (lower.includes('timeline') || lower.includes('month') || lower.includes('months') || lower.includes('महिने') || lower.includes('महीने') || lower.includes('कालावधी') || lower.includes('मुदत')) matchedKey = 'timeline_months';
+    else if (lower.includes('recovery') || lower.includes('creditor') || lower.includes('operational') || lower.includes('रिकव्हरी') || lower.includes('वसुली') || lower.includes('लेनदार')) matchedKey = 'op_creditor_recovery';
+    else if (lower.includes('promoter') || lower.includes('governance') || lower.includes('track') || lower.includes('प्रमोटर') || lower.includes('प्रवर्तक') || lower.includes('कारभार')) matchedKey = 'promoter_track';
+  } else if (targetDomain === 'nabard') {
+    if (lower.includes('land') || lower.includes('acre') || lower.includes('acres') || lower.includes('farmland') || lower.includes('zameen') || lower.includes('sheti') || lower.includes('जमीन') || lower.includes('शेती') || lower.includes('एकर') || lower.includes('एकड़') || lower.includes('भूमि') || lower.includes('शेतजमीन') || lower.includes('நிலம்') || lower.includes('భూమి')) matchedKey = 'land_holding';
+    else if (lower.includes('crop') || lower.includes('yield') || lower.includes('harvest') || lower.includes('produce') || lower.includes('fasal') || lower.includes('उत्पन्न') || lower.includes('पीक') || lower.includes('धान्य') || lower.includes('फसल') || lower.includes('விளைச்சல்')) matchedKey = 'crop_value';
+    else if (lower.includes('informal') || lower.includes('moneylender') || lower.includes('sahukar') || lower.includes('सावकारी कर्ज') || lower.includes('खाजगी कर्ज') || lower.includes('सावकार') || lower.includes('साहुकार')) matchedKey = 'informal_debt';
+    else if (lower.includes('irrigation') || lower.includes('water') || lower.includes('borewell') || lower.includes('canal') || lower.includes('सिंचाई') || lower.includes('सिंचन') || lower.includes('पाणी पुरवठा') || lower.includes('ओलिताची सोय') || lower.includes('बोरवेल')) matchedKey = 'irrigation_status';
+    else if (lower.includes('crop insurance') || lower.includes('insurance') || lower.includes('pmfby') || lower.includes('bima') || lower.includes('पीक विमा') || lower.includes('फसल बीमा') || lower.includes('विमा') || lower.includes('பயிர் காப்பீடு')) matchedKey = 'crop_insurance';
   }
 
-  // Age (PFRDA)
-  const age = _extractFuzzyParam(lower, ['age', 'investor age', 'वय', 'उम्र', 'आयु']);
-  if (age && age >= 18 && age <= 75) { extractedParams['age'] = age; targetDomain = 'pfrda'; }
-
-  // Monthly Contribution (PFRDA)
-  const nps = _extractFuzzyParam(lower, ['contribution', 'monthly contribution', 'nps', 'savings', 'अंशदान', 'बचत']);
-  if (nps && nps >= 500) { extractedParams['monthly_contribution'] = nps; targetDomain = 'pfrda'; }
-
-  // Switch domain if target domain differs
-  if (targetDomain !== currentDomain && DOMAINS[targetDomain]) {
-    switchDomain(targetDomain);
-    domainSwitched = true;
-  }
-
-  // Apply parameters
-  const domainObj = DOMAINS[targetDomain];
-  let paramUpdated = false;
-  let updatedParts = [];
-
-  for (const [k, v] of Object.entries(extractedParams)) {
-    const f = domainObj?.fields.find(item => item.key === k);
-    if (f) {
-      let finalVal = v;
-      if (f.min !== undefined && f.max !== undefined) {
-        finalVal = Math.max(f.min, Math.min(f.max, finalVal));
-      }
-      state[k] = finalVal;
-      paramUpdated = true;
-      const fmtVal = f.fmt ? f.fmt(finalVal) : (finalVal === 1 ? 'ON' : (finalVal === 0 ? 'OFF' : finalVal));
-      updatedParts.push(`${f.flabel}: ${fmtVal}`);
+  // Cross-domain fallback: if parameter belongs uniquely to another domain, switch to it!
+  if (!matchedKey) {
+    if (lower.includes('policy vintage') || lower.includes('vintage') || lower.includes('पॉलिसी विंटेज')) {
+      targetDomain = 'irdai'; switchDomain('irdai'); matchedKey = 'tenure'; domainSwitched = true;
+    } else if (lower.includes('cibil') || lower.includes('सिबिल')) {
+      targetDomain = 'rbi'; switchDomain('rbi'); matchedKey = 'score'; domainSwitched = true;
+    } else if (lower.includes('land') || lower.includes('acre') || lower.includes('शेती') || lower.includes('एकड़') || lower.includes('एकर')) {
+      targetDomain = 'nabard'; switchDomain('nabard'); matchedKey = 'land_holding'; domainSwitched = true;
+    } else if (lower.includes('enterprise value') || lower.includes('resolution value') || lower.includes('एंटरप्राइज वैल्यू')) {
+      targetDomain = 'ibbi'; switchDomain('ibbi'); matchedKey = 'ev_amount'; domainSwitched = true;
+    } else if (lower.includes('pension target') || lower.includes('पेन्शन ध्येय')) {
+      targetDomain = 'pfrda'; switchDomain('pfrda'); matchedKey = 'pension_target'; domainSwitched = true;
+    } else if (lower.includes('age') || lower.includes('उम्र') || lower.includes('वय') || lower.includes('வயது') || lower.includes('వయస్సు')) {
+      targetDomain = 'pfrda'; switchDomain('pfrda'); matchedKey = 'age'; domainSwitched = true;
     }
   }
 
-  if (paramUpdated) {
-    buildFields();
-    renderCert();
+  // If a parameter and number were both detected
+  if (matchedKey && extracted) {
+    const domainObj = DOMAINS[targetDomain];
+    const f = domainObj?.fields.find(item => item.key === matchedKey);
+    if (f) {
+      let finalVal = extracted.num;
+      // In IBBI enterprise value is in Crores directly
+      if (f.key === 'ev_amount' && extracted.rawUnit === 'crore') {
+        finalVal = extracted.rawNum;
+      }
+      if (f.min !== undefined && f.max !== undefined) {
+        finalVal = Math.max(f.min, Math.min(f.max, finalVal));
+      }
+
+      state[matchedKey] = finalVal;
+      buildFields();
+      renderCert();
+
+      const formattedVal = f.fmt ? f.fmt(finalVal) : finalVal;
+      const successMsg = domainSwitched
+        ? `✓ Switched to ${domainObj.name} & set ${f.flabel} to ${formattedVal}`
+        : `✓ Set ${f.flabel} to ${formattedVal}`;
+
+      if (banner) banner.classList.add('success-flash');
+      if (statusText) statusText.textContent = successMsg;
+      showVoiceFeedbackToast(successMsg);
+      return true;
+    }
   }
 
-  if (domainSwitched || paramUpdated) {
-    const feedbackMsg = (domainSwitched ? `🎯 Switched to ${domainObj.name} & updated ` : '✓ Updated ') + (updatedParts.join(', ') || 'parameters');
+  // If only sector was switched
+  if (domainSwitched) {
+    const domainObj = DOMAINS[targetDomain];
+    const msg = `🎯 Switched to ${domainObj.name} (${domainObj.fullName})`;
     if (banner) banner.classList.add('success-flash');
-    if (statusText) statusText.textContent = feedbackMsg;
-    showVoiceFeedbackToast(feedbackMsg);
+    if (statusText) statusText.textContent = msg;
+    showVoiceFeedbackToast(msg);
     return true;
   }
 
