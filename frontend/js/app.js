@@ -319,7 +319,7 @@ function stopVoiceDictate() {
   pendingVoiceUtterance = '';
   const chatInput = document.getElementById('chat-input');
   if (chatInput) {
-    chatInput.placeholder = "Type your profile or query (e.g. 'loan 2 lakh, civil 90')...";
+    chatInput.placeholder = "Type your profile or query (e.g. 'loan 2 lakh, CIBIL 780')...";
   }
   const chatMicBtn = document.getElementById('chat-mic-btn');
   if (chatMicBtn) chatMicBtn.classList.remove('recording');
@@ -1012,15 +1012,49 @@ async function translateWholePage() {
     return;
   }
 
-  const h1Text = await translateService.translateText('Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.', 'en', currentLang);
-  const ledeText = await translateService.translateText('SPASHTA eliminates AI opacity by converting complex credit, insurance, pension, insolvency, and investment scoring into plain-language explanations, interactive visual charts, and spoken voice readouts.', 'en', currentLang);
-  
-  document.getElementById('hero-h1').textContent = h1Text;
-  document.getElementById('hero-lede').textContent = ledeText;
+  const d = DOMAINS[currentDomain];
+  const bundle = {
+    hero_h1: 'Every AI Decision, Explained Visually & Spoken in 22 Indian Languages.',
+    hero_lede: 'SPASHTA eliminates AI opacity by converting complex credit, insurance, pension, insolvency, and investment scoring into plain-language explanations, interactive visual charts, and spoken voice readouts.',
+    domain_intro: d.intro,
+    verdict_pos: d.decisionWord.pos,
+    verdict_neg: d.decisionWord.neg,
+    cert_title: 'Official XAI Compliance Audit Certificate',
+    cert_citation: d.citation
+  };
+
+  if (d && d.fields) {
+    d.fields.forEach((f, idx) => {
+      if (f.label) bundle[`f_label_${idx}`] = f.label;
+      if (f.flabel) bundle[`f_flabel_${idx}`] = f.flabel;
+      if (f.help) bundle[`f_help_${idx}`] = f.help;
+      if (f.options) {
+        f.options.forEach((o, oidx) => {
+          if (o.label) bundle[`f_opt_${idx}_${oidx}`] = o.label;
+        });
+      }
+    });
+  }
+
+  if (d && d.presets) {
+    d.presets.forEach((p, pidx) => {
+      if (p.label) bundle[`preset_${pidx}`] = p.label;
+    });
+  }
+
+  // Pre-fetch complete batch translation across all UI elements in 1 fast roundtrip!
+  const translated = await translateService.translateBatch(bundle, 'en', currentLang);
+
+  if (translated && translated.hero_h1) {
+    document.getElementById('hero-h1').textContent = translated.hero_h1;
+  }
+  if (translated && translated.hero_lede) {
+    document.getElementById('hero-lede').textContent = translated.hero_lede;
+  }
 }
 
 function initDomainTabs() {
-  document.getElementById('tabs').addEventListener('click', (e) => {
+  document.getElementById('tabs').addEventListener('click', async (e) => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1030,8 +1064,11 @@ function initDomainTabs() {
     state = defaultState(currentDomain);
 
     translateService.stopAudio();
-    buildFields();
-    renderCert();
+    if (currentLang !== 'en') {
+      await translateWholePage();
+    }
+    await buildFields();
+    await renderCert();
   });
 }
 

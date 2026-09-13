@@ -110,7 +110,8 @@ Where:
 |---|---|---|---|
 | `GET` | `/health` | None (Public) | Service uptime, supported sectors, and PostgreSQL connection ping |
 | `POST` | `/score` | `X-API-Key` | Computes Aumann-Shapley attributions ($\phi_i$), outcome probability, and decision |
-| `POST` | `/translate` | None (Public) | Proxies text translation across 22 Indian languages with server-side in-memory cache |
+| `POST` | `/translate` | None (Public) | Single string translation across 22 Indian languages with server-side in-memory cache |
+| `POST` | `/translate/batch` | None (Public) | Single-roundtrip batch UI dictionary translation powered by Gemini 1.5 Flash (via Google AI Studio) & parallel fallback |
 | `POST` | `/certificate` | `X-API-Key` | Persists decision record, generates SHA-256 fingerprint, returns `cert_id` |
 | `GET` | `/verify/{cert_id}` | None (Public) | Scoped verification endpoint returning cryptographic metadata without PII |
 | `POST` | `/webhook/account-aggregator` | `X-API-Key` | Financial statement ingestion simulating Sahamati AA consent flow |
@@ -223,7 +224,7 @@ python -m pytest backend/tests -v
 ```
 Output:
 ```text
-======================== 33 passed in 1.25s ========================
+======================== 37 passed in 1.88s ========================
 ```
 
 ### 4. Run Backend Server

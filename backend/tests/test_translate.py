@@ -24,6 +24,7 @@ def test_translate_empty_text(client):
 
 
 from unittest.mock import patch, MagicMock
+import json
 import httpx
 
 
@@ -51,4 +52,92 @@ def test_translate_live_or_cache(client):
         data2 = resp2.json()
         assert data2["cached"] is True
         assert data2["translated_text"] == data1["translated_text"]
+
+
+def test_translate_batch_same_language(client):
+    payload = {
+        "texts": {"title": "Loan Underwriting", "cibil": "CIBIL Score"},
+        "source_lang": "en",
+        "target_lang": "en"
+    }
+    response = client.post("/translate/batch", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["translations"]["title"] == "Loan Underwriting"
+    assert data["translations"]["cibil"] == "CIBIL Score"
+    assert data["engine"] == "identity"
+
+
+def test_translate_batch_empty(client):
+    payload = {
+        "texts": {},
+        "source_lang": "en",
+        "target_lang": "hi"
+    }
+    response = client.post("/translate/batch", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["translations"] == {}
+    assert data["engine"] == "noop"
+
+
+def test_translate_batch_with_mock_parallel(client):
+    payload = {
+        "texts": {
+            "btn1": "Compute Explanations",
+            "btn2": "Reset Defaults"
+        },
+        "source_lang": "en",
+        "target_lang": "hi"
+    }
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = [[["स्पष्टीकरण निकालें", "Compute Explanations"]]]
+
+    with patch("httpx.AsyncClient.get", return_value=mock_response):
+        response = client.post("/translate/batch", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert "btn1" in data["translations"]
+        assert "btn2" in data["translations"]
+        assert data["engine"] in ["gtx-parallel", "cache"]
+
+
+def test_translate_batch_with_gemini(client):
+    payload = {
+        "texts": {
+            "lbl1": "Monthly Income",
+            "lbl2": "Loan Amount"
+        },
+        "source_lang": "en",
+        "target_lang": "mr"
+    }
+    mock_gemini_resp = MagicMock(spec=httpx.Response)
+    mock_gemini_resp.status_code = 200
+    mock_gemini_resp.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": json.dumps({
+                                "lbl1": "मासिक उत्पन्न",
+                                "lbl2": "कर्जाची रक्कम"
+                            })
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    with patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}):
+        with patch("httpx.AsyncClient.post", return_value=mock_gemini_resp):
+            response = client.post("/translate/batch", json=payload)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["translations"]["lbl1"] == "मासिक उत्पन्न"
+            assert data["translations"]["lbl2"] == "कर्जाची रक्कम"
+            assert data["engine"] == "gemini-1.5-flash"
+
 

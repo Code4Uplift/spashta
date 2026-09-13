@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 import re
@@ -31,6 +32,8 @@ try:
         ScoreResponse,
         TranslateRequest,
         TranslateResponse,
+        BatchTranslateRequest,
+        BatchTranslateResponse,
         CertificateCreateRequest,
         CertificatePublic,
         AccountAggregatorWebhookPayload,
@@ -48,6 +51,8 @@ except ImportError:
         ScoreResponse,
         TranslateRequest,
         TranslateResponse,
+        BatchTranslateRequest,
+        BatchTranslateResponse,
         CertificateCreateRequest,
         CertificatePublic,
         AccountAggregatorWebhookPayload,
@@ -164,6 +169,84 @@ def compute_score(request: ScoreRequest):
     return ScoreResponse(**result)
 
 
+LANGUAGE_NAMES: Dict[str, str] = {
+    "hi": "Hindi",
+    "mr": "Marathi",
+    "bn": "Bengali",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "gu": "Gujarati",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "pa": "Punjabi",
+    "or": "Odia",
+    "as": "Assamese",
+    "ur": "Urdu",
+    "sa": "Sanskrit",
+    "ne": "Nepali",
+    "sd": "Sindhi",
+    "ks": "Kashmiri",
+    "kok": "Konkani",
+    "mai": "Maithili",
+    "doi": "Dogri",
+    "mni": "Manipuri",
+    "brx": "Bodo",
+    "sat": "Santali",
+    "en": "English"
+}
+
+HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+async def _translate_single_text(clean_text: str, source_lang: str, target_lang: str, client: httpx.AsyncClient) -> str:
+    if not clean_text or source_lang == target_lang:
+        return clean_text
+
+    cache_key = f"{source_lang}_{target_lang}_{clean_text}"
+    if cache_key in _translation_cache:
+        return _translation_cache[cache_key]
+
+    translated_result = clean_text
+
+    # 1. Primary: Google GTX
+    try:
+        encoded_query = urllib.parse.quote(clean_text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={source_lang}&tl={target_lang}&dt=t&q={encoded_query}"
+        resp = await client.get(url)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data and isinstance(data, list) and len(data) > 0 and data[0]:
+                chunks = [item[0] for item in data[0] if item and item[0]]
+                if chunks:
+                    cand = "".join(chunks).strip()
+                    if cand and cand != clean_text:
+                        _translation_cache[cache_key] = cand
+                        return cand
+    except Exception:
+        pass
+
+    # 2. Fallback: MyMemory API
+    if target_lang != "en":
+        try:
+            encoded_query = urllib.parse.quote(clean_text)
+            url2 = f"https://api.mymemory.translated.net/get?q={encoded_query}&langpair={source_lang}|{target_lang}&de=spashta.audit.ai@gmail.com"
+            resp2 = await client.get(url2)
+            if resp2.status_code == 200:
+                data2 = resp2.json()
+                mem_trans = data2.get("responseData", {}).get("translatedText", "").strip()
+                if mem_trans and not mem_trans.upper().startswith("MYMEMORY WARNING") and mem_trans != clean_text:
+                    _translation_cache[cache_key] = mem_trans
+                    return mem_trans
+        except Exception:
+            pass
+
+    return translated_result
+
+
 @app.post("/translate", response_model=TranslateResponse, tags=["Multilingual NMT"])
 async def translate_text(request: TranslateRequest):
     """
@@ -201,55 +284,140 @@ async def translate_text(request: TranslateRequest):
             cached=True
         )
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "*/*",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-
-    translated_result = clean_text
-
-    # 1. Primary: Google GTX with browser headers
-    try:
-        encoded_query = urllib.parse.quote(clean_text)
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={source_lang}&tl={target_lang}&dt=t&q={encoded_query}"
-        async with httpx.AsyncClient(timeout=6.0, headers=headers) as client:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data and isinstance(data, list) and len(data) > 0 and data[0]:
-                    chunks = [item[0] for item in data[0] if item and item[0]]
-                    if chunks:
-                        cand = "".join(chunks).strip()
-                        if cand and cand != clean_text:
-                            translated_result = cand
-    except Exception:
-        pass
-
-    # 2. Fallback: MyMemory API with verified email parameter
-    if translated_result == clean_text and target_lang != "en":
-        try:
-            encoded_query = urllib.parse.quote(clean_text)
-            url2 = f"https://api.mymemory.translated.net/get?q={encoded_query}&langpair={source_lang}|{target_lang}&de=spashta.audit.ai@gmail.com"
-            async with httpx.AsyncClient(timeout=5.0, headers=headers) as client:
-                resp2 = await client.get(url2)
-                if resp2.status_code == 200:
-                    data2 = resp2.json()
-                    mem_trans = data2.get("responseData", {}).get("translatedText", "").strip()
-                    if mem_trans and not mem_trans.upper().startswith("MYMEMORY WARNING") and mem_trans != clean_text:
-                        translated_result = mem_trans
-        except Exception:
-            pass
-
-    # Only cache successful translations
-    if translated_result != clean_text:
-        _translation_cache[cache_key] = translated_result
+    async with httpx.AsyncClient(timeout=6.0, headers=HTTP_HEADERS) as client:
+        res = await _translate_single_text(clean_text, source_lang, target_lang, client)
 
     return TranslateResponse(
-        translated_text=translated_result,
+        translated_text=res,
         source_lang=source_lang,
         target_lang=target_lang,
         cached=False
+    )
+
+
+@app.post("/translate/batch", response_model=BatchTranslateResponse, tags=["Multilingual NMT"])
+async def translate_batch(request: BatchTranslateRequest):
+    """
+    Batch-translates a dictionary of UI strings across 22 Indian languages in a single roundtrip.
+    Powered by Google Gemini 1.5 Flash (via GEMINI_API_KEY) with structured JSON output,
+    with an automatic parallelized fallback and in-memory caching.
+    """
+    source_lang = request.source_lang.lower().strip()
+    target_lang = request.target_lang.lower().strip()
+    raw_texts = request.texts
+
+    if not raw_texts:
+        return BatchTranslateResponse(
+            translations={},
+            source_lang=source_lang,
+            target_lang=target_lang,
+            engine="noop"
+        )
+
+    if source_lang == target_lang:
+        return BatchTranslateResponse(
+            translations=raw_texts,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            engine="identity"
+        )
+
+    translated_dict: Dict[str, str] = {}
+    uncached_items: Dict[str, str] = {}
+
+    # 1. Check in-memory cache
+    for key, text_val in raw_texts.items():
+        clean_text = re.sub(r"<[^>]*>", "", text_val or "").strip()
+        if not clean_text:
+            translated_dict[key] = text_val
+            continue
+
+        cache_key = f"{source_lang}_{target_lang}_{clean_text}"
+        if cache_key in _translation_cache:
+            translated_dict[key] = _translation_cache[cache_key]
+        else:
+            uncached_items[key] = clean_text
+
+    if not uncached_items:
+        return BatchTranslateResponse(
+            translations=translated_dict,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            engine="cache"
+        )
+
+    engine_used = "cache"
+    gemini_key = os.getenv("GEMINI_API_KEY")
+
+    # 2. Primary: Google Gemini 1.5 Flash batch JSON translation
+    if gemini_key and uncached_items:
+        try:
+            target_lang_name = LANGUAGE_NAMES.get(target_lang, target_lang)
+            prompt = (
+                f"You are a professional financial and regulatory translator specializing in Indian languages.\n"
+                f"Translate the string values of the following JSON dictionary from {source_lang} to {target_lang_name} ({target_lang}).\n\n"
+                f"RULES:\n"
+                f"1. Keep every JSON key identical. Do NOT translate or change any keys.\n"
+                f"2. Translate only the string values into natural, contextually accurate {target_lang_name}.\n"
+                f"3. Maintain financial/regulatory acronyms and terms properly (e.g. CIBIL, FOIR, DTI, PMFBY, IRDAI, SEBI, RBI, NPS, KCC).\n"
+                f"4. Return strictly a single valid JSON object matching the input keys and translated values.\n\n"
+                f"Input JSON:\n{json.dumps(uncached_items, ensure_ascii=False)}"
+            )
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "response_mime_type": "application/json",
+                    "temperature": 0.1
+                }
+            }
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                res = await client.post(url, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        parts = candidates[0]["content"].get("parts", [])
+                        if parts and "text" in parts[0]:
+                            gemini_dict = json.loads(parts[0]["text"])
+                            if isinstance(gemini_dict, dict):
+                                for k, v in gemini_dict.items():
+                                    if k in uncached_items and isinstance(v, str) and v.strip():
+                                        trans_str = v.strip()
+                                        translated_dict[k] = trans_str
+                                        orig_str = uncached_items[k]
+                                        _translation_cache[f"{source_lang}_{target_lang}_{orig_str}"] = trans_str
+                                engine_used = "gemini-1.5-flash"
+        except Exception as e:
+            print(f"⚠️ Gemini 1.5 Flash batch translation exception: {e}. Falling back to parallel engine.")
+
+    # 3. Fallback: Parallel asynchronous translation for any keys still missing
+    missing_items = {k: v for k, v in uncached_items.items() if k not in translated_dict or translated_dict[k] == v}
+    if missing_items:
+        async with httpx.AsyncClient(timeout=6.0, headers=HTTP_HEADERS) as client:
+            semaphore = asyncio.Semaphore(10)
+
+            async def translate_single(k: str, orig_text: str):
+                async with semaphore:
+                    trans = await _translate_single_text(orig_text, source_lang, target_lang, client)
+                    return k, orig_text, trans
+
+            tasks = [translate_single(k, text_val) for k, text_val in missing_items.items()]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in results:
+                if isinstance(r, tuple) and len(r) == 3:
+                    k, orig_text, trans = r
+                    translated_dict[k] = trans
+                    if trans != orig_text:
+                        _translation_cache[f"{source_lang}_{target_lang}_{orig_text}"] = trans
+        if engine_used != "gemini-1.5-flash":
+            engine_used = "gtx-parallel"
+
+    return BatchTranslateResponse(
+        translations=translated_dict,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        engine=engine_used
     )
 
 

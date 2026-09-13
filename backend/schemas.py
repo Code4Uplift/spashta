@@ -79,6 +79,19 @@ class TranslateResponse(BaseModel):
     cached: bool = False
 
 
+class BatchTranslateRequest(BaseModel):
+    texts: Dict[str, str] = Field(..., description="Key-value mapping of element keys to texts to translate")
+    source_lang: str = "en"
+    target_lang: str = "hi"
+
+
+class BatchTranslateResponse(BaseModel):
+    translations: Dict[str, str]
+    source_lang: str
+    target_lang: str
+    engine: str = "gemini-1.5-flash"
+
+
 class CertificateCreateRequest(BaseModel):
     domain: DomainType
     inputs: Dict[str, float] = Field(default_factory=dict)

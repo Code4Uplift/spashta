@@ -265,6 +265,83 @@ class InstantTranslateService {
     return result;
   }
 
+  async translateBatch(textsMap, sourceLang = 'en', targetLang = 'hi') {
+    if (!textsMap || Object.keys(textsMap).length === 0) return {};
+    if (sourceLang === targetLang) return { ...textsMap };
+
+    const results = {};
+    const uncached = {};
+
+    for (const [key, text] of Object.entries(textsMap)) {
+      if (!text || typeof text !== 'string') {
+        results[key] = text;
+        continue;
+      }
+      const clean = text.replace(/<[^>]*>?/gm, '').trim();
+      if (!clean) {
+        results[key] = text;
+        continue;
+      }
+
+      const cacheKey = `${sourceLang}_${targetLang}_${clean}`;
+      if (this.cache.has(cacheKey)) {
+        results[key] = this.cache.get(cacheKey);
+      } else if (STATIC_TRANSLATIONS && STATIC_TRANSLATIONS[targetLang] && STATIC_TRANSLATIONS[targetLang][clean]) {
+        const match = STATIC_TRANSLATIONS[targetLang][clean];
+        this.cache.set(cacheKey, match);
+        results[key] = match;
+      } else {
+        uncached[key] = clean;
+      }
+    }
+
+    if (Object.keys(uncached).length === 0) {
+      return results;
+    }
+
+    // Call FastAPI backend POST /translate/batch (Gemini 1.5 Flash batch translation)
+    try {
+      const resp = await fetch(`${SPASHTA_API_URL}/translate/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          texts: uncached,
+          source_lang: sourceLang,
+          target_lang: targetLang
+        })
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.translations) {
+          for (const [key, translatedVal] of Object.entries(data.translations)) {
+            results[key] = translatedVal;
+            const originalClean = uncached[key];
+            if (originalClean && translatedVal) {
+              this.cache.set(`${sourceLang}_${targetLang}_${originalClean}`, translatedVal);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Backend batch translation failed, executing parallel browser fallback:', e);
+    }
+
+    // Any keys still missing: run fetchSingleTranslation in parallel
+    const missingKeys = Object.keys(uncached).filter(k => !results[k]);
+    if (missingKeys.length > 0) {
+      await Promise.all(
+        missingKeys.map(async (k) => {
+          const trans = await this.fetchSingleTranslation(uncached[k], sourceLang, targetLang);
+          results[k] = trans;
+          this.cache.set(`${sourceLang}_${targetLang}_${uncached[k]}`, trans);
+        })
+      );
+    }
+
+    return results;
+  }
+
   async fetchSingleTranslation(textChunk, sourceLang, targetLang) {
     const clean = textChunk.trim();
     if (!clean) return textChunk;

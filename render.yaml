@@ -17,3 +17,5 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         value: https://spashtaa.vercel.app,http://localhost:3000,http://127.0.0.1:3000
+      - key: GEMINI_API_KEY
+        sync: false
