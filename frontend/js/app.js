@@ -434,12 +434,15 @@ function removeChatThinking() {
 function highlightAttributionBars() {
   const cert = document.getElementById('cert');
   if (!cert) return;
-  const elements = cert.querySelectorAll('.factor, .verdict-hero, .visual-analytics');
+  const elements = cert.querySelectorAll('.factor-card, .verdict-hero, .visual-analytics');
   elements.forEach(el => {
-    el.classList.remove('bar-row-highlight');
+    el.classList.remove('bar-highlight-pulse');
     void el.offsetWidth;
-    el.classList.add('bar-row-highlight');
+    el.classList.add('bar-highlight-pulse');
   });
+  setTimeout(() => {
+    elements.forEach(el => el.classList.remove('bar-highlight-pulse'));
+  }, 1400);
 }
 
 function escapeHtml(str) {
@@ -1339,18 +1342,33 @@ async function renderCert() {
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.val)), 0.001);
 
   const factorsHtml = rows.map(r => {
-    const pct = Math.min(100, (Math.abs(r.val) / maxAbs) * 50);
-    const cls = r.val >= 0 ? 'pos' : 'neg';
-    const arrow = r.val >= 0 ? '↑' : '↓';
+    const pct = Math.min(50, (Math.abs(r.val) / maxAbs) * 50);
+    const isPos = r.val >= 0;
+    const cls = isPos ? 'pos' : 'neg';
+    const arrow = isPos ? '↑' : '↓';
+    const sign = isPos ? '+' : '';
+    const formattedVal = `${sign}${r.val.toFixed(3)}`;
+    const driverLabel = isPos ? 'Positive Driver' : 'Risk Factor';
+
     return `
-      <div class="factor">
-        <div class="factor-top">
-          <span class="fname"><span>${r.icon}</span> ${r.name}</span>
-          <span class="fval ${cls}">${arrow} ${r.val >= 0 ? '+' : ''}${r.val.toFixed(3)}</span>
+      <div class="factor-card ${cls}">
+        <div class="factor-card-header">
+          <div class="factor-info">
+            <span class="factor-icon">${r.icon}</span>
+            <span class="factor-name">${r.name}</span>
+            <span class="factor-driver-badge ${cls}">${driverLabel}</span>
+          </div>
+          <div class="factor-val-badge ${cls}">
+            <span class="factor-arrow">${arrow}</span>
+            <span class="factor-num">${formattedVal}</span>
+          </div>
         </div>
-        <div class="factor-bar">
-          <div class="center"></div>
-          <div class="bar-fill ${cls}" style="width:${pct}%;"></div>
+        <div class="factor-bar-track" title="${r.name}: ${formattedVal} (${driverLabel})">
+          <div class="factor-center-line"></div>
+          ${isPos 
+            ? `<div class="factor-fill pos" style="left: 50%; width: ${pct}%;"></div>`
+            : `<div class="factor-fill neg" style="right: 50%; width: ${pct}%;"></div>`
+          }
         </div>
       </div>`;
   }).join('');
@@ -1437,13 +1455,9 @@ async function renderCert() {
           <span></span><span></span><span></span><span></span>
         </div>
       </div>
-      <div style="font-size:11px; font-weight:600; color:var(--text-muted);">
-        Indic Regional Voice Stream
+      <div class="voice-toolbar-meta">
+        <span>🗣️ 22 Indic Languages Voice</span>
       </div>
-    </div>
-
-    <div class="audio-note-bar no-print">
-      🔊 <b>Multi-Engine Regional Voice:</b> Synthesizing natural spoken advisory in <b>${currentLangObj?.native || 'Selected Language'}</b> using zero-dependency Indic TTS.
     </div>
 
     <div class="visual-analytics">
@@ -1456,10 +1470,31 @@ async function renderCert() {
       </div>
     </div>
 
-    <div class="factors-label">Visual Shapley Attribution Weights</div>
-    ${factorsHtml}
+    <div class="factors-section">
+      <div class="factors-header">
+        <div class="factors-header-left">
+          <div class="factors-label">Visual Shapley Attribution Weights</div>
+          <div class="factors-subtext">Aumann-Shapley Marginal Contributions (Sum = Score - Baseline)</div>
+        </div>
+        <div class="factors-legend">
+          <span class="legend-item legend-neg"><span class="legend-dot neg"></span> Lowers Approval</span>
+          <span class="legend-divider">|</span>
+          <span class="legend-item legend-pos"><span class="legend-dot pos"></span> Boosts Approval</span>
+        </div>
+      </div>
+      <div class="factors-axis-ruler">
+        <span>-Max Risk</span>
+        <span>← Decreases Score</span>
+        <span class="axis-center-mark">0 (Baseline)</span>
+        <span>Increases Score →</span>
+        <span>+Max Merit</span>
+      </div>
+      <div class="factors-list">
+        ${factorsHtml}
+      </div>
+    </div>
 
-    <div class="cert-sentence" style="font-size:13.5px; font-weight:500; line-height:1.65; background:#F8FAFC; padding:16px; border-radius:12px; border:1px solid #E2E8F0; white-space:pre-wrap;">${sentence}</div>
+    <div class="cert-sentence" style="font-size:13px; font-weight:500; line-height:1.65; background:#F8FAFC; padding:14px; border-radius:10px; border:1px solid #E2E8F0; white-space:pre-wrap; margin-top:16px;">${sentence}</div>
 
     <div class="cert-footer">
       <div class="citation">${certCitation}</div>
