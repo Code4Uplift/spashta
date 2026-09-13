@@ -90,6 +90,7 @@ default_origins = [
     "http://localhost:5500",
     "http://127.0.0.1:5500",
     "https://spashta.vercel.app",
+    "https://spashtaa.vercel.app",
     "https://spashta-seven.vercel.app",
     "https://spashta-ideathon-demo.vercel.app"
 ]

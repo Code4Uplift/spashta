@@ -6,14 +6,14 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-blue.svg?logo=python&logoColor=white)](https://python.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-3ECF8E.svg?logo=supabase&logoColor=white)](https://supabase.com)
-[![Vercel](https://img.shields.io/badge/Frontend-Vercel%20Live-black.svg?logo=vercel&logoColor=white)](https://spashta-ideathon-demo.vercel.app/)
-[![Render](https://img.shields.io/badge/Backend-Render%20Live-46E3B7.svg?logo=render&logoColor=white)](https://spashta-ideathon-demo.onrender.com/health)
+[![Vercel](https://img.shields.io/badge/Frontend-Vercel%20Live-black.svg?logo=vercel&logoColor=white)](https://spashtaa.vercel.app/)
+[![Render](https://img.shields.io/badge/Backend-Render%20Live-46E3B7.svg?logo=render&logoColor=white)](https://spashta-backend.onrender.com/health)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Audit-Ready, Citizen-Centric Explainable AI (XAI) for Regulated Financial Sectors in India**  
 *Democratizing algorithmic transparency across 6 regulatory authorities in 22 Eighth Schedule Indian languages.*
 
-[🌐 Live Web Application](https://spashta-ideathon-demo.vercel.app/) • [⚡ Live FastAPI Backend](https://spashta-ideathon-demo.onrender.com/) • [📚 Interactive Swagger API Docs](https://spashta-ideathon-demo.onrender.com/docs) • [🏥 Health Check](https://spashta-ideathon-demo.onrender.com/health)
+[🌐 Live Web Application](https://spashtaa.vercel.app/) • [⚡ Live FastAPI Backend](https://spashta-backend.onrender.com/) • [📚 Interactive Swagger API Docs](https://spashta-backend.onrender.com/docs) • [🏥 Health Check](https://spashta-backend.onrender.com/health)
 
 </div>
 
@@ -67,8 +67,10 @@ Where:
 
 ## 🌟 Key Features & Capabilities
 
-- **Smart Multilingual Voice Assistant (STT)**: Unified hands-free voice command system supporting compound natural speech (e.g. *"I want to check SEBI, I have 5 lakh rupees income"*, *"पॉलिसी विंटेज 5 साल"*, *"जमीन 10 एकर"*, *"CIBIL 780"*) across English, Hindi, Marathi, and 22 Indian languages.
-- **Instant Sector Switching & Parameter Dictation**: Automatically switches active authority (RBI, IRDAI, SEBI, PFRDA, IBBI, NABARD) and updates sliders in real time with live streaming speech feedback.
+- **AI Underwriting Copilot (Conversational XAI)**: Interactive AI underwriting assistant powered by natural language understanding (with TCET CoE Qwen model integration and deterministic regex fallback). Users can speak or type complex financial queries (e.g. *"I am an applicant with CIBIL 780, monthly income 85000, looking for personal loan"*), and the copilot automatically parses parameters, updates input sliders, triggers Aumann-Shapley recalculation, and provides conversational advice.
+- **Voice Note (VN) Speech Recognition with Silence Auto-Submit**: Full hands-free voice note system using Web Speech API with real-time speech waveform animations (`.vn-audio-bars`), silence timeout detection (`onend` auto-submission), and multilingual speech-to-text dictation across Indian languages.
+- **Instant Sector Switching & Parameter Dictation**: Automatically switches active authority (RBI, IRDAI, SEBI, PFRDA, IBBI, NABARD) and updates sliders in real time with live streaming feedback.
+- **Exact Closed-Form Aumann-Shapley Marginal Attribution Math**: Strict adherence to Efficiency, Symmetry, Additivity, and Null Player axioms, guaranteeing $\sum \phi_i = \Delta P$.
 - **QR-Verified PDF Compliance Certificates**: Scannable, tamper-evident cryptographic certificates with dynamic QR deep-links (`?verify=<cert_id>`) ensuring **zero PII leakage** under India's DPDP Act 2023.
 - **Indic Regional Voice Synthesis (TTS)**: Dynamic regional voice playback with Play, Pause, Resume, and Stop controls across Eighth Schedule Indian languages.
 - **6-Agency Regulatory Domain Expansion**: Full mathematical models for RBI, IRDAI, SEBI, PFRDA, IBBI, and NABARD.
@@ -112,10 +114,11 @@ Where:
 | `POST` | `/certificate` | `X-API-Key` | Persists decision record, generates SHA-256 fingerprint, returns `cert_id` |
 | `GET` | `/verify/{cert_id}` | None (Public) | Scoped verification endpoint returning cryptographic metadata without PII |
 | `POST` | `/webhook/account-aggregator` | `X-API-Key` | Financial statement ingestion simulating Sahamati AA consent flow |
+| `POST` | `/voice-intent` | None (Public) | Multilingual voice & text intent parsing for automatic slider & sector extraction |
 
 ### Example Request: `/score`
 ```bash
-curl -X POST https://spashta-ideathon-demo.onrender.com/score \
+curl -X POST https://spashta-backend.onrender.com/score \
   -H "Content-Type: application/json" \
   -H "X-API-Key: spashta-secret-key-2026" \
   -d '{
@@ -178,14 +181,14 @@ curl -X POST https://spashta-ideathon-demo.onrender.com/score \
 5. Configure Environment Variables:
    - `DATABASE_URL`: Your Supabase Transaction Pooler URI.
    - `API_KEY`: `spashta-secret-key-2026`
-   - `ALLOWED_ORIGINS`: `https://spashta-ideathon-demo.vercel.app,http://localhost:3000`
+    - `ALLOWED_ORIGINS`: `https://spashtaa.vercel.app,http://localhost:3000`
 
 ### 3. Frontend Deployment (Vercel)
 1. In [Vercel Dashboard](https://vercel.com/), click **Add New Project** and import the repository.
 2. Set **Root Directory** to `frontend`.
 3. Framework Preset: **Other**.
 4. Click **Deploy**.
-5. The frontend is pre-configured in `frontend/js/config.js` to automatically target `https://spashta-ideathon-demo.onrender.com`.
+5. The frontend is pre-configured in `frontend/js/config.js` to automatically target `https://spashta-backend.onrender.com`.
 
 ---
 
@@ -220,7 +223,7 @@ python -m pytest backend/tests -v
 ```
 Output:
 ```text
-======================== 17 passed in 2.26s ========================
+======================== 33 passed in 1.25s ========================
 ```
 
 ### 4. Run Backend Server
